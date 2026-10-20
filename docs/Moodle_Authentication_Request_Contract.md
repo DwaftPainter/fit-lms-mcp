@@ -39,7 +39,8 @@ Cookie: MoodleSession=<REDACTED>
 - Required? `Yes`
 - Stays the same during a session? `Yes`
 - Changes after login? `Yes`
-- Behavior if missing/invalid: `500 Internal Server Error`
+- Behavior if missing: `500 Internal Server Error`
+- Behavior if invalid: `500 Internal Server Error`
 
 Sanitized representation:
 
@@ -58,6 +59,7 @@ Sanitized representation:
 | Expired session | `TBD` | `TBD` | `AUTH_SESSION_EXPIRED` |
 | Missing `sesskey` | `200` | `[{error: true, exception: {errorcode: "missingparam"}}]` | Clear auth/request error |
 | Invalid `sesskey` | `200` | `[{error: true, exception: {errorcode: "invalidsesskey"}}]` | Clear auth/request error |
+| Missing `MoodleSession`, retained `sesskey` | `200` | `[{error: true, exception: {errorcode: "servicerequireslogin"}}]` | AUTH_SESSION_EXPIRED |
 
 **Safe testing:** Revisit the LMS normally after signing out and document the browser's observed behavior. Do not probe unauthorized resources or bypass authentication controls.
 
@@ -185,12 +187,12 @@ POST https://lms.fit.hanu.vn/lib/ajax/service.php
 
 | Field | Observation |
 | --- | --- |
-| Browser page triggering request | `TBD` |
+| Browser page triggering request | `https://lms.fit.hanu.vn/my/courses.php` |
 | Exact method name | `core_course_get_enrolled_courses_by_timeline_classification` |
-| Exact payload confirmed? | `No — verify in DevTools` |
-| Pagination behavior | `TBD` |
-| Course filtering/classification | `TBD` |
-| Failure behavior | `TBD` |
+| Exact payload confirmed? | Yes — verified in DevTools |
+| Pagination behavior | Uses offset and limit; edge cases TBD |
+| Course filtering/classification | classification: "all" confirmed |
+| Failure behavior | Partially verified |
 
 ### Sanitized sample response
 
@@ -252,9 +254,11 @@ Record sanitized real responses in the table below. Do not assume failure always
 
 | Case | Observed HTTP status | Observed body/error fields | Internal error type |
 | --- | --- | --- | --- |
-| Console `fetch` without `sesskey` (separate from the post-logout reload above) | `200` | `errorcode: servicerequireslogin` | `AUTH_REQUIRED` |
+| Missing MoodleSession | `200` | `errorcode: servicerequireslogin` | `AUTH_REQUIRED` |
+| Missing MoodleSession, retained sesskey | `200` | `errorcode: servicerequireslogin` | `AUTH_REQUIRED` |
 | Authentication expired | `200` | `errorcode: invalidsesskey` | `AUTH_REQUIRED` / `AUTH_SESSION_EXPIRED` |
 | Invalid sesskey | `200` | ``errorcode: invalidsesskey`` | `INVALID_SESSION_KEY` |
+| Missing sesskey | `200` | ``errorcode: missingparam`` | `MISSING_SESSION_KEY` |
 | Unsupported Moodle method | `200` | `errorcode: "invalidrecord"; root JSON object` | `MOODLE_API_ERROR` |
 | Network timeout | n/a | `TimeoutError: signal timed out` | `NETWORK_TIMEOUT` |
 | Server/unexpected response | `TBD` | `TBD` | `MOODLE_RESPONSE_ERROR` |
@@ -295,7 +299,24 @@ interface MoodleClient {
 
 > The error fields above are provisional. Update the TypeScript types after recording the LMS's actual error response contract.
 
-## 7. Security checklist
+## 7. Login authentication flow
+
+- **Login endpoint:** `POST /login/index.php`
+- **Content-Type:** `application/x-www-form-urlencoded`
+- **Payload:** `logintoken`, `username`, `password`
+- **Login response:** `303 See Other`
+- **Redirect chain:**
+  1. `/login/index.php`
+  2. `/login/index.php?testsession=<REDACTED>`
+  3. `/`
+- **Session cookie:** `MoodleSession`
+- **Session cookie rotation:** Observed during login
+- **Authentication verified after redirect:** `Yes — Authenticated homepage reached; enrolled-courses API returned successfully`
+- **sesskey retrieval:** `window.M?.cfg?.sesskey` (available on the authenticated LMS page)
+
+**Conclusion:** Moodle uses form-based authentication followed by a session verification redirect. The authenticated session is then used to access Moodle AJAX APIs.
+
+## 8. Security checklist
 
 - [ ] Read-only tools for the MVP
 - [ ] Authorization limited to the current student's accessible courses/resources
@@ -314,7 +335,7 @@ MOODLE_SESSION=<SET_LOCALLY_DO_NOT_COMMIT>
 MOODLE_SESSKEY=<SET_LOCALLY_DO_NOT_COMMIT>
 ```
 
-## 8. Open questions
+## 9. Open questions
 
 - [ ] Is an official Moodle REST/Web Service API enabled for students?
 - [ ] Which cookies, query parameters, and headers are actually required?
