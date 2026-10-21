@@ -12,7 +12,8 @@
   "scripts": {
     "build": "tsc && mcp-build",
     "watch": "tsc --watch",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "tsc && node --test tests/unit/env.test.mjs"
   },
   "dependencies": {
     "mcp-framework": "^0.2.22"
