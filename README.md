@@ -13,6 +13,19 @@ npm run build
 
 ```
 
+## Configuration
+
+Set these environment variables in the process that starts the server:
+
+| Variable | Requirement |
+| --- | --- |
+| `LMS_BASE_URL` | Required HTTP(S) Moodle base URL, without credentials, query, or fragment |
+| `LMS_MOODLE_SESSION` | Required Moodle session cookie value |
+| `LMS_MOODLE_SESSKEY` | Required Moodle session key |
+| `TIMEOUT_MS` | Optional positive integer in milliseconds; defaults to `5000` |
+
+The server checks configuration before starting. If a setting is missing or invalid, it exits with an error naming the setting, without printing credential values. Replace the credential placeholders in the examples below with your own values. Copying `.env.example` to `.env` does not load that file automatically; pass its values through your process environment or your MCP client's `env` configuration. This check confirms credential presence, not whether the session is still valid.
+
 ## Project Structure
 
 ```
@@ -113,7 +126,12 @@ Add this configuration to your Claude Desktop config file:
   "mcpServers": {
     "hanu-lms-mcp": {
       "command": "node",
-      "args":["/absolute/path/to/hanu-lms-mcp/dist/index.js"]
+      "args":["/absolute/path/to/hanu-lms-mcp/dist/index.js"],
+      "env": {
+        "LMS_BASE_URL": "https://lms.fit.hanu.vn",
+        "LMS_MOODLE_SESSION": "your_moodle_session_cookie",
+        "LMS_MOODLE_SESSKEY": "your_moodle_sesskey"
+      }
     }
   }
 }
@@ -131,7 +149,12 @@ Add this configuration to your Claude Desktop config file:
   "mcpServers": {
     "hanu-lms-mcp": {
       "command": "npx",
-      "args": ["hanu-lms-mcp"]
+      "args": ["hanu-lms-mcp"],
+      "env": {
+        "LMS_BASE_URL": "https://lms.fit.hanu.vn",
+        "LMS_MOODLE_SESSION": "your_moodle_session_cookie",
+        "LMS_MOODLE_SESSKEY": "your_moodle_sesskey"
+      }
     }
   }
 }
