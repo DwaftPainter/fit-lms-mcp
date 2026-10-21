@@ -1,4 +1,11 @@
 import { AuthProvider } from "./auth/auth-provider.js";
+import {
+  MoodleApiError,
+  MoodleAuthError,
+  MoodleError,
+  MoodleSessionKeyError,
+} from "./errors.js";
+
 export interface MoodleClientOptions {
   baseUrl: string;
   authProvider: AuthProvider;
@@ -62,13 +69,26 @@ export class MoodleClient {
     const parsed: unknown = await response.json();
 
     if (!Array.isArray(parsed) || parsed.length === 0) {
-      throw new Error("Unexpected response shape from Moodle: expected non-empty array");
+      throw new MoodleError("Unexpected response shape from Moodle: expected non-empty array");
     }
 
     const envelope = parsed[0] as MoodleAjaxResponsePayload<TResult>;
 
     if (envelope.error) {
-      throw new Error(envelope.exception?.message ?? envelope.message ?? "Unknown Moodle error");
+      const errorcode = envelope.exception?.errorcode ?? envelope.errorcode;
+      const message = envelope.exception?.message ?? envelope.message ?? "Unknown Moodle error";
+
+      if (errorcode === "servicerequireslogin") {
+        throw new MoodleAuthError(message, "AUTH_REQUIRED");
+      }
+      if (errorcode === "invalidsesskey") {
+        throw new MoodleSessionKeyError(message, "INVALID_SESSION_KEY");
+      }
+      if (errorcode === "missingparam") {
+        throw new MoodleSessionKeyError(message, "MISSING_SESSION_KEY");
+      }
+
+      throw new MoodleApiError(message, errorcode, envelope.exception);
     }
 
     return envelope.data as TResult;
