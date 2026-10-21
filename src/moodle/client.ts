@@ -3,6 +3,7 @@ import {
   MoodleApiError,
   MoodleAuthError,
   MoodleError,
+  MoodleNetworkError,
   MoodleSessionKeyError,
 } from "./errors.js";
 
@@ -56,17 +57,41 @@ export class MoodleClient {
       },
     ];
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Cookie: `MoodleSession=${credentials.session}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutTimer = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    const parsed: unknown = await response.json();
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Cookie: `MoodleSession=${credentials.session}`,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new MoodleNetworkError(`Request to Moodle timed out after ${this.timeoutMs}ms`, "NETWORK_TIMEOUT");
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      throw new MoodleNetworkError(`Network error communicating with Moodle: ${message}`, "NETWORK_ERROR");
+    } finally {
+      clearTimeout(timeoutTimer);
+    }
+
+    if (!response.ok) {
+      throw new MoodleError(`Moodle HTTP request failed with status ${response.status}`);
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = await response.json();
+    } catch {
+      throw new MoodleError("Failed to parse JSON response from Moodle");
+    }
 
     if (!Array.isArray(parsed) || parsed.length === 0) {
       throw new MoodleError("Unexpected response shape from Moodle: expected non-empty array");
