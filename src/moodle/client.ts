@@ -11,6 +11,19 @@ interface MoodleAjaxRequestPayload<TArgs> {
   args: TArgs;
 }
 
+interface MoodleAjaxResponsePayload<TResult> {
+  error: boolean;
+  data?: TResult;
+  exception?: {
+    errorcode?: string;
+    message?: string;
+    link?: string;
+    moreinfourl?: string;
+  };
+  errorcode?: string;
+  message?: string;
+}
+
 export class MoodleClient {
   private readonly baseUrl: string;
   private readonly authProvider: AuthProvider;
@@ -46,7 +59,18 @@ export class MoodleClient {
       body: JSON.stringify(payload),
     });
 
-    const parsed = (await response.json()) as Array<{ data: TResult }>;
-    return parsed[0].data;
+    const parsed: unknown = await response.json();
+
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      throw new Error("Unexpected response shape from Moodle: expected non-empty array");
+    }
+
+    const envelope = parsed[0] as MoodleAjaxResponsePayload<TResult>;
+
+    if (envelope.error) {
+      throw new Error(envelope.exception?.message ?? envelope.message ?? "Unknown Moodle error");
+    }
+
+    return envelope.data as TResult;
   }
 }
