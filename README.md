@@ -26,6 +26,11 @@ Set these environment variables in the process that starts the server:
 
 The server checks configuration before starting. If a setting is missing or invalid, it exits with an error naming the setting, without printing credential values. Replace the credential placeholders in the examples below with your own values. Copying `.env.example` to `.env` does not load that file automatically; pass its values through your process environment or your MCP client's `env` configuration. This check confirms credential presence, not whether the session is still valid.
 
+## Documentation
+
+- [HAN-9 — Moodle authentication and request contract](docs/Moodle_Authentication_Request_Contract.md)
+- [HAN-12 — Assignment and deadline endpoint discovery](docs/Moodle_Assignment_Deadline_Endpoint_Discovery.md)
+
 ## Project Structure
 
 ```
