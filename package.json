@@ -4,11 +4,21 @@
   "description": "hanu-lms-mcp MCP server",
   "type": "module",
   "bin": {
-    "hanu-lms-mcp": "./dist/index.js"
+    "hanu-lms-mcp": "./dist/index.js",
+    "hanu-lms-setup": "./scripts/setup.mjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "scripts/setup.mjs"
   ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "hanu",
+    "moodle",
+    "lms"
+  ],
+  "license": "MIT",
   "scripts": {
     "build": "tsc && mcp-build",
     "watch": "tsc --watch",
