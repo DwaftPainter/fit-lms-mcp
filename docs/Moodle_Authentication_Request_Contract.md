@@ -1,5 +1,10 @@
 # HAN-9 — Moodle Authentication & Request Contract
 
+> Current implementation note (2026-11-16): the observations below are historical.
+> An invalid sesskey does not prove expiry; generic `missingparam` does not prove
+> a missing sesskey. See the current contract and refresh procedure in
+> [README](../README.md#refresh-the-session).
+
 **Scope:** Read-only access to the student's authorized LMS data\
 **LMS base URL:** `https://lms.fit.hanu.vn`\
 **Platform:** Moodle (inferred from endpoint and method naming; verify)
@@ -256,7 +261,7 @@ Record sanitized real responses in the table below. Do not assume failure always
 | --- | --- | --- | --- |
 | Missing MoodleSession | `200` | `errorcode: servicerequireslogin` | `AUTH_REQUIRED` |
 | Missing MoodleSession, retained sesskey | `200` | `errorcode: servicerequireslogin` | `AUTH_REQUIRED` |
-| Authentication expired | `200` | `errorcode: invalidsesskey` | `AUTH_REQUIRED` / `AUTH_SESSION_EXPIRED` |
+| Invalid sesskey; expiry not established | `200` | `errorcode: invalidsesskey` | `INVALID_SESSION_KEY` |
 | Invalid sesskey | `200` | ``errorcode: invalidsesskey`` | `INVALID_SESSION_KEY` |
 | Missing sesskey | `200` | ``errorcode: missingparam`` | `MISSING_SESSION_KEY` |
 | Unsupported Moodle method | `200` | `errorcode: "invalidrecord"; root JSON object` | `MOODLE_API_ERROR` |
