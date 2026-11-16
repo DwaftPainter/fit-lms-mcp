@@ -27,7 +27,7 @@ export class CourseService {
       startDate: toIsoString(c.startdate),
       endDate: toIsoString(c.enddate),
       progress: c.progress ?? null,
-      url: c.viewurl,
+      url: c.viewurl ? `${this.client.baseUrl}/course/view.php?id=${c.id}` : undefined,
     }));
   }
 

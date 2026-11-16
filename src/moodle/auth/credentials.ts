@@ -8,7 +8,10 @@ export function validateCredentials(credentials: MoodleSessionCredentials): void
   if (!isSafeCookieValue(credentials.session) || credentials.session === "your_moodle_session_cookie") {
     throw new MoodleAuthError("Set a valid LMS_MOODLE_SESSION from your signed-in LMS session, then restart the MCP server");
   }
-  if (!isSafeSesskey(credentials.sesskey) || credentials.sesskey === "your_moodle_sesskey") {
+  if (!credentials.sesskey || credentials.sesskey === "your_moodle_sesskey") {
     throw new MoodleSessionKeyError("Set LMS_MOODLE_SESSKEY from the same signed-in LMS session, then restart the MCP server", "MISSING_SESSION_KEY");
+  }
+  if (!isSafeSesskey(credentials.sesskey)) {
+    throw new MoodleSessionKeyError("LMS_MOODLE_SESSKEY has an invalid format; refresh it from the same signed-in LMS session");
   }
 }

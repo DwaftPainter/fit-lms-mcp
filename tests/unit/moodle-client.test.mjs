@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MoodleClient } from "../../dist/moodle/client.js";
 import { ManualSessionProvider } from "../../dist/moodle/auth/manual-session-provider.js";
+import { CourseService } from "../../dist/services/course.service.js";
 
 const clientFor = (credentials = { session: "test-session", sesskey: "test-key" }) => new MoodleClient({
   baseUrl: "https://example.invalid/moodle", authProvider: new ManualSessionProvider(credentials),
@@ -79,6 +80,26 @@ test("missing sesskey is diagnosed locally and cookie injection is rejected befo
   t.mock.method(globalThis, "fetch", () => assert.fail("invalid credentials must not fetch"));
   await assert.rejects(clientFor({ session: "test-session", sesskey: "" }).call("core_test_method", {}), error => error.code === "MISSING_SESSION_KEY");
   await assert.rejects(clientFor({ session: "session; other=injected", sesskey: "test-key" }).call("core_test_method", {}), error => error.code === "AUTH_REQUIRED");
+  await assert.rejects(clientFor({ session: "test-session", sesskey: "invalid\nkey" }).call("core_test_method", {}), error => error.code === "INVALID_SESSION_KEY");
+});
+
+test("oversized declared and streamed responses fail before data reaches adapters", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => new Response("{}", { headers: { "content-length": String(9 * 1024 * 1024) } }));
+  await assert.rejects(clientFor().call("core_test_method", {}), error => error.code === "MOODLE_RESPONSE_ERROR");
+  t.mock.method(globalThis, "fetch", async () => new Response(new Uint8Array(8 * 1024 * 1024 + 1)));
+  await assert.rejects(clientFor().call("core_test_method", {}), error => error.code === "MOODLE_RESPONSE_ERROR");
+});
+
+test("invalid client URLs fail without echoing private input", () => {
+  for (const baseUrl of ["private invalid URL", "https://private:secret@example.invalid", "https://example.invalid?token=private"]) {
+    assert.throws(() => new MoodleClient({ baseUrl, authProvider: {} }), error => error.code === "INVALID_CONFIG" && !/private|secret/.test(error.message));
+  }
+});
+
+test("course URLs are normalized to the configured LMS without server-supplied credentials", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => Response.json([{ error: false, data: { courses: [{ id: 7, fullname: "Course", viewurl: "https://evil.invalid/course/view.php?id=7&sesskey=private" }], nextoffset: 0 } }]));
+  const [course] = await new CourseService(clientFor()).getMyCourses();
+  assert.equal(course.url, "https://example.invalid/moodle/course/view.php?id=7");
 });
 
 test("remote error codes cannot echo configured credentials", async (t) => {

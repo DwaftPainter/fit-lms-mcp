@@ -15,12 +15,15 @@ const responseError = () => new MoodleError("Moodle returned an invalid or overs
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 export class MoodleClient {
-  private readonly baseUrl: string;
+  readonly baseUrl: string;
   private readonly authProvider: AuthProvider;
   private readonly timeoutMs: number;
 
   constructor(options: MoodleClientOptions) {
-    const base = new URL(options.baseUrl);
+    let base: URL;
+    try { base = new URL(options.baseUrl); } catch {
+      throw new MoodleError("Invalid Moodle base URL", "INVALID_CONFIG");
+    }
     if (!["http:", "https:"].includes(base.protocol) || base.username || base.password || base.search || base.hash) {
       throw new MoodleError("Invalid Moodle base URL", "INVALID_CONFIG");
     }

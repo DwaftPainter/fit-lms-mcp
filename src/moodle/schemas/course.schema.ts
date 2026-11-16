@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const moodleCourseItemSchema = z.object({
-  id: z.number(),
+  id: z.number().int().positive().safe(),
   fullname: z.string(),
   shortname: z.string().optional(),
   summary: z.string().optional(),
@@ -14,7 +14,7 @@ export const moodleCourseItemSchema = z.object({
 
 export const moodleEnrolledCoursesDataSchema = z.object({
   courses: z.array(moodleCourseItemSchema),
-  nextoffset: z.number().optional(),
+  nextoffset: z.number().int().nonnegative().safe().optional(),
 });
 
 export type MoodleCourseItem = z.infer<typeof moodleCourseItemSchema>;
