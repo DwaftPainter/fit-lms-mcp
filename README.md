@@ -20,11 +20,15 @@ client's environment instead. The server itself does not automatically load `.en
 | Variable | Meaning |
 | --- | --- |
 | `LMS_BASE_URL` | Required HTTP(S) Moodle base URL, e.g. `https://lms.fit.hanu.vn`; no credentials, query or fragment |
-| `LMS_MOODLE_SESSION` | Required value of your own `MoodleSession` cookie |
-| `LMS_MOODLE_SESSKEY` | Required sesskey from the same browser login session |
+| `LMS_USERNAME` | Student ID / username for automatic login (Option 1) |
+| `LMS_PASSWORD` | Password for automatic login (Option 1; automatically logs in and refreshes expired sessions) |
+| `LMS_MOODLE_SESSION` | MoodleSession cookie value (Option 2 - Manual session) |
+| `LMS_MOODLE_SESSKEY` | sesskey query value (Option 2 - Manual session) |
 | `TIMEOUT_MS` | Optional request timeout in milliseconds, including response-body reading; default `5000`, maximum `2147483647` |
 
 Configuration failures name the invalid setting without printing its value.
+Provide either `LMS_USERNAME` and `LMS_PASSWORD` for automatic login, or
+`LMS_MOODLE_SESSION` and `LMS_MOODLE_SESSKEY` for manual session configuration.
 Cookie delimiters/control characters and unsafe sesskeys are rejected. Real
 `.env*` files are ignored by Git; `.env.example` contains placeholders only.
 
@@ -119,19 +123,25 @@ For Claude Desktop, the equivalent entry under `mcpServers` is:
 }
 ```
 
-## Refresh the session
+## Authentication and session management
 
+### Option 1: Automatic login (Recommended)
+Configure `LMS_USERNAME` and `LMS_PASSWORD` in your `.env`. The server automatically performs
+the form login on Moodle, caches the session and sesskey in memory, and transparently
+re-authenticates whenever the session expires. No manual session copying is required.
+
+### Option 2: Manual session refresh (Legacy)
+If using `LMS_MOODLE_SESSION` and `LMS_MOODLE_SESSKEY`:
 1. Sign in normally to your own LMS account in your browser.
 2. In browser DevTools, obtain the `MoodleSession` cookie from Application/Storage
    and the `sesskey` query value from a normal `/lib/ajax/service.php` Network
    request. Copy both from the same current login into your local `.env`.
-3. Restart/reconnect the MCP server in the client. Rebuild only if code changed.
+3. Restart/reconnect the MCP server in the client.
 
 Do not paste live values into chat, screenshots, issues, logs or source control.
-The server does not collect passwords or perform automatic login. `AUTH_REQUIRED`
-means Moodle requested authentication. `INVALID_SESSION_KEY` means an invalid
-sesskey and does not prove that the session expired. An empty course list alone
-does not prove authentication failure. A remote `missingparam` may concern any
+`AUTH_REQUIRED` means Moodle requested authentication. `INVALID_SESSION_KEY` means
+an invalid sesskey and does not prove that the session expired. An empty course list
+alone does not prove authentication failure. A remote `missingparam` may concern any
 method argument; only a known missing local sesskey maps to `MISSING_SESSION_KEY`.
 
 ## Verification

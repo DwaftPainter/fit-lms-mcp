@@ -1,6 +1,6 @@
 import { MCPTool } from "mcp-framework";
 import { loadConfig } from "../config/env.js";
-import { ManualSessionProvider } from "../moodle/auth/manual-session-provider.js";
+import { getAuthProvider } from "../moodle/auth/provider-factory.js";
 import { MoodleClient } from "../moodle/client.js";
 import { DeadlineInput, DeadlineService, deadlineInputSchema } from "../services/deadline.service.js";
 
@@ -13,7 +13,7 @@ class DeadlinesTool extends MCPTool<DeadlineInput> {
     const config = loadConfig();
     const client = new MoodleClient({
       baseUrl: config.baseUrl,
-      authProvider: ManualSessionProvider.fromConfig(config),
+      authProvider: getAuthProvider(config),
       timeoutMs: config.timeoutMs,
     });
     return new DeadlineService(client, config.baseUrl).getDeadlines(input);

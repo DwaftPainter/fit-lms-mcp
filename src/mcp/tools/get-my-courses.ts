@@ -1,7 +1,7 @@
 import { MCPTool } from "mcp-framework";
 import { z } from "zod";
 import { loadConfig } from "../../config/env.js";
-import { ManualSessionProvider } from "../../moodle/auth/manual-session-provider.js";
+import { getAuthProvider } from "../../moodle/auth/provider-factory.js";
 import { MoodleClient } from "../../moodle/client.js";
 import { CourseService } from "../../services/course.service.js";
 
@@ -25,7 +25,7 @@ export class GetMyCoursesTool extends MCPTool<GetMyCoursesInput> {
 
   async execute(input: GetMyCoursesInput) {
     const config = loadConfig();
-    const authProvider = ManualSessionProvider.fromConfig(config);
+    const authProvider = getAuthProvider(config);
     const client = new MoodleClient({
       baseUrl: config.baseUrl,
       authProvider,

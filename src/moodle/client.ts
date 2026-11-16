@@ -1,6 +1,6 @@
 import { AuthProvider, MoodleSessionCredentials } from "./auth/auth-provider.js";
 import { validateCredentials } from "./auth/credentials.js";
-import { MoodleAuthError, MoodleError, MoodleNetworkError } from "./errors.js";
+import { MoodleAuthError, MoodleError, MoodleNetworkError, MoodleSessionKeyError } from "./errors.js";
 import { decodeMoodleResponses } from "./response.js";
 
 export interface MoodleClientOptions {
@@ -45,22 +45,23 @@ export class MoodleClient {
     if (requests.length > 50 || requests.some(request => !/^[a-z][a-z0-9_]{0,127}$/.test(request.method))) {
       throw new MoodleError("A Moodle batch must contain at most 50 valid method names", "INVALID_REQUEST");
     }
-    const credentials = await this.credentials();
-    const { response, body } = await this.send(`/lib/ajax/service.php?sesskey=${encodeURIComponent(credentials.sesskey)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(requests.map((request, index) => ({ index, methodname: request.method, args: request.args }))),
-    }, credentials);
-    let parsed: unknown;
-    try { parsed = JSON.parse(body); } catch {
+    return this.withAuthRetry(async (credentials) => {
+      const { response, body } = await this.send(`/lib/ajax/service.php?sesskey=${encodeURIComponent(credentials.sesskey)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(requests.map((request, index) => ({ index, methodname: request.method, args: request.args }))),
+      }, credentials);
+      let parsed: unknown;
+      try { parsed = JSON.parse(body); } catch {
+        if (!response.ok) throw this.httpError(response.status);
+        if (/id=["']page-login-index["']/.test(body)) throw this.loginError();
+        throw responseError();
+      }
+      // Moodle can return meaningful JSON errors even with a non-2xx HTTP status.
+      const data = decodeMoodleResponses(parsed, requests.length, credentials);
       if (!response.ok) throw this.httpError(response.status);
-      if (/id=["']page-login-index["']/.test(body)) throw this.loginError();
-      throw responseError();
-    }
-    // Moodle can return meaningful JSON errors even with a non-2xx HTTP status.
-    const data = decodeMoodleResponses(parsed, requests.length, credentials);
-    if (!response.ok) throw this.httpError(response.status);
-    return data as TResult[];
+      return data as TResult[];
+    });
   }
 
   getAssignmentIndex(courseId: number): Promise<string> {
@@ -73,11 +74,32 @@ export class MoodleClient {
 
   private async getPage(path: string, courseId: number): Promise<string> {
     if (!Number.isSafeInteger(courseId) || courseId <= 0) throw new MoodleError("Invalid course ID", "INVALID_REQUEST");
-    const { response, body } = await this.send(`${path}?id=${courseId}`, { headers: { Accept: "text/html" } }, await this.credentials());
-    if (!response.ok) throw this.httpError(response.status);
-    if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) throw responseError();
-    if (/id=["']page-login-index["']/.test(body)) throw this.loginError();
-    return body;
+    return this.withAuthRetry(async (credentials) => {
+      const { response, body } = await this.send(`${path}?id=${courseId}`, { headers: { Accept: "text/html" } }, credentials);
+      if (!response.ok) throw this.httpError(response.status);
+      if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) throw responseError();
+      if (/id=["']page-login-index["']/.test(body)) throw this.loginError();
+      return body;
+    });
+  }
+
+  private async withAuthRetry<T>(fn: (credentials: MoodleSessionCredentials) => Promise<T>): Promise<T> {
+    const credentials = await this.credentials();
+    try {
+      return await fn(credentials);
+    } catch (error) {
+      if (
+        (error instanceof MoodleAuthError || error instanceof MoodleSessionKeyError) &&
+        typeof this.authProvider.invalidate === "function"
+      ) {
+        this.authProvider.invalidate();
+        const fresh = await this.credentials();
+        if (fresh.session !== credentials.session || fresh.sesskey !== credentials.sesskey) {
+          return await fn(fresh);
+        }
+      }
+      throw error;
+    }
   }
 
   private async credentials(): Promise<MoodleSessionCredentials> {

@@ -5,4 +5,5 @@ export interface MoodleSessionCredentials {
 
 export interface AuthProvider {
   getCredentials(): Promise<MoodleSessionCredentials>;
+  invalidate?(): void;
 }

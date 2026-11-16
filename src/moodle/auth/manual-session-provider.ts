@@ -6,8 +6,8 @@ export class ManualSessionProvider implements AuthProvider {
 
   static fromConfig(config: LmsConfig): ManualSessionProvider {
     return new ManualSessionProvider({
-      session: config.moodleSession,
-      sesskey: config.moodleSesskey,
+      session: config.moodleSession ?? "",
+      sesskey: config.moodleSesskey ?? "",
     });
   }
 
