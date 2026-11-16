@@ -4,7 +4,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { loadConfig } from "../dist/config/env.js";
 import { MoodleClient } from "../dist/moodle/client.js";
-import { ManualSessionProvider } from "../dist/moodle/auth/manual-session-provider.js";
+import { getAuthProvider } from "../dist/moodle/auth/provider-factory.js";
 
 if (process.env.LMS_LIVE_SMOKE !== "1") {
   console.log("Live smoke disabled. Set LMS_LIVE_SMOKE=1 and supply local LMS credentials to opt in.");
@@ -60,7 +60,7 @@ try {
   assert.ok(dates.every((date, index) => date >= before && date <= after + 7 * 86400000 && (index === 0 || date >= dates[index - 1])));
   console.log(JSON.stringify({ check: "get_upcoming_deadlines", passed: true, daysAhead: 7, deadlines: deadlines.length }));
   currentCheck = "batch";
-  const client = new MoodleClient({ baseUrl: config.baseUrl, authProvider: ManualSessionProvider.fromConfig(config), timeoutMs: config.timeoutMs });
+  const client = new MoodleClient({ baseUrl: config.baseUrl, authProvider: getAuthProvider(config), timeoutMs: config.timeoutMs });
   const batch = await client.callBatch([
     { method: "core_course_get_enrolled_courses_by_timeline_classification", args: { offset: 0, limit: 50, classification: "all", sort: "fullname", customfieldname: "", customfieldvalue: "", searchvalue: "" } },
     { method: "core_calendar_get_action_events_by_timesort", args: { timesortfrom: 0, aftereventid: 0, limitnum: 2 } },

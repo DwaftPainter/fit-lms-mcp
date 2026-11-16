@@ -66,3 +66,38 @@ test("rejects cookie delimiters, control characters and overflowing timeouts wit
     assert.throws(() => loadConfig({ ...validEnv, ...fields }), error => !error.message.includes("private"));
   }
 });
+
+test("loads valid username and password credentials configuration", () => {
+  assert.deepEqual(
+    loadConfig({
+      LMS_BASE_URL: "https://lms.example.edu/moodle",
+      LMS_USERNAME: "student-123",
+      LMS_PASSWORD: "secret-password",
+    }),
+    {
+      baseUrl: "https://lms.example.edu/moodle",
+      timeoutMs: 5000,
+      username: "student-123",
+      password: "secret-password",
+    }
+  );
+});
+
+test("rejects incomplete credentials login configuration and placeholders", () => {
+  assert.throws(
+    () => loadConfig({ LMS_BASE_URL: "https://lms.example.edu", LMS_USERNAME: "student" }),
+    /LMS_PASSWORD is required when using credentials login/
+  );
+  assert.throws(
+    () => loadConfig({ LMS_BASE_URL: "https://lms.example.edu", LMS_PASSWORD: "pass" }),
+    /LMS_USERNAME is required when using credentials login/
+  );
+  assert.throws(
+    () => loadConfig({ LMS_BASE_URL: "https://lms.example.edu", LMS_USERNAME: "your_student_id", LMS_PASSWORD: "your_password" }),
+    (error) => {
+      assert.match(error.message, /LMS_USERNAME is required when using credentials login/);
+      assert.match(error.message, /LMS_PASSWORD is required when using credentials login/);
+      return true;
+    }
+  );
+});
