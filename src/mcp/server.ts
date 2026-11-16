@@ -1,5 +1,6 @@
 import { MCPServer, MCPServerConfig } from "mcp-framework";
 import GetMyCoursesTool from "./tools/get-my-courses.js";
+import DeadlinesTool from "../tools/DeadlinesTool.js";
 
 export function createServer(config?: MCPServerConfig): MCPServer {
   const server = new MCPServer({
@@ -9,6 +10,7 @@ export function createServer(config?: MCPServerConfig): MCPServer {
   });
 
   server.addTool(GetMyCoursesTool);
+  server.addTool(DeadlinesTool);
 
   return server;
 }

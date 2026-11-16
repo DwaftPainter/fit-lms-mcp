@@ -31,6 +31,17 @@ The server checks configuration before starting. If a setting is missing or inva
 - [HAN-9 — Moodle authentication and request contract](docs/Moodle_Authentication_Request_Contract.md)
 - [HAN-12 — Assignment and deadline endpoint discovery](docs/Moodle_Assignment_Deadline_Endpoint_Discovery.md)
 
+## Available tools
+
+- `get_my_courses`: enrolled courses, optionally filtered by `classification` (`all`, `inprogress`, `future`, `past`).
+- `deadlines`: assignment due events from the authenticated student's calendar. Optional `from` and `to` are inclusive ISO 8601 due-date bounds with a timezone; `from` defaults to the current time. Optional `courseId` filters one course.
+
+For example, call `deadlines` with `{}` for upcoming deadlines, or with
+`{"from":"2026-01-01T00:00:00+07:00","to":"2026-12-31T23:59:59+07:00","courseId":900001}`.
+Each result includes `eventId`, `title`, `courseId`, `courseName`, `dueDate` (UTC ISO 8601), and a read-only assignment `url` or `null`.
+
+The deadline tool follows calendar pages using both the last event's `timesort` and ID, deduplicates by event ID, and sorts by actual due date (`timestart`). It scans from Unix time zero and applies date filters locally because action sort time can differ from the due date. A stalled cursor or a traversal beyond 100 pages returns an error instead of a partial list. Events without a usable due date are omitted. Calendar action events do not cover every assignment and do not establish submission status or cutoff dates.
+
 ## Project Structure
 
 ```
