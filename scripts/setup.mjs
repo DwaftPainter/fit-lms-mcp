@@ -4,72 +4,221 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import readline from "node:readline";
+import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 
-function ask(question, isPassword = false) {
+export function serializeEnvValue(val) {
+  const str = String(val ?? "");
+  if (!str.includes('"')) {
+    return `"${str}"`;
+  }
+  if (!str.includes("'")) {
+    return `'${str}'`;
+  }
+  return `"${str.replace(/"/g, '\\"')}"`;
+}
+
+export function parseEnvContent(content) {
+  const result = {};
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx <= 0) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    let val = trimmed.slice(eqIdx + 1).trim();
+
+    if (val.startsWith('"')) {
+      const closingIdx = val.indexOf('"', 1);
+      if (closingIdx > 0) {
+        val = val.slice(1, closingIdx);
+      }
+    } else if (val.startsWith("'")) {
+      const closingIdx = val.indexOf("'", 1);
+      if (closingIdx > 0) {
+        val = val.slice(1, closingIdx);
+      }
+    } else {
+      const hashIdx = val.indexOf("#");
+      if (hashIdx >= 0) {
+        val = val.slice(0, hashIdx).trim();
+      }
+    }
+    result[key] = val;
+  }
+  return result;
+}
+
+export function stripJsonComments(text) {
+  let inString = false;
+  let quoteChar = "";
+  let escaped = false;
+  let result = "";
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (inString) {
+      result += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === quoteChar) {
+        inString = false;
+      }
+    } else {
+      if (char === '"' || char === "'") {
+        inString = true;
+        quoteChar = char;
+        result += char;
+      } else if (char === "/" && next === "/") {
+        const nl = text.indexOf("\n", i + 2);
+        if (nl === -1) break;
+        i = nl - 1;
+      } else if (char === "/" && next === "*") {
+        const end = text.indexOf("*/", i + 2);
+        if (end === -1) break;
+        i = end + 1;
+      } else {
+        result += char;
+      }
+    }
+  }
+  return result.replace(/,(\s*[}\]])/g, "$1");
+}
+
+export function updateJsonConfigFile(configPath, serverConfig, key = "mcpServers") {
+  let json = {};
+  if (fs.existsSync(configPath)) {
+    let raw = "";
+    try {
+      raw = fs.readFileSync(configPath, "utf8");
+    } catch (readErr) {
+      console.error(`\n❌ Không thể đọc file cấu hình: ${configPath} (${readErr.message})`);
+      console.error(`   ⚠️  Đã HỦY thao tác ghi để bảo vệ file của bạn.`);
+      return false;
+    }
+
+    if (raw.trim().length > 0) {
+      try {
+        json = JSON.parse(stripJsonComments(raw));
+      } catch (parseErr) {
+        console.error(`\n❌ Không thể parse file cấu hình JSON hiện tại: ${configPath}`);
+        console.error(`   Lỗi cú pháp: ${parseErr.message}`);
+        console.error(`   ⚠️  Đã HỦY thao tác ghi để bảo vệ toàn vẹn file cấu hình hiện tại của bạn.`);
+        return false;
+      }
+    }
+  }
+
+  if (typeof json !== "object" || json === null || Array.isArray(json)) {
+    console.error(`\n❌ Cấu trúc JSON không hợp lệ (không phải JSON object): ${configPath}`);
+    console.error(`   ⚠️  Đã HỦY thao tác ghi.`);
+    return false;
+  }
+
+  if (!json[key] || typeof json[key] !== "object" || Array.isArray(json[key])) {
+    json[key] = {};
+  }
+  json[key]["hanu-lms"] = serverConfig;
+
+  try {
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify(json, null, 2) + "\n", "utf8");
+    return true;
+  } catch (writeErr) {
+    console.error(`\n❌ Lỗi khi ghi file ${configPath}: ${writeErr.message}`);
+    return false;
+  }
+}
+
+export function askText(question) {
   return new Promise((resolve) => {
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
     });
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
 
-    if (isPassword && process.stdin.isTTY) {
-      process.stdout.write(question);
-      let input = "";
-      const stdin = process.stdin;
-      stdin.setRawMode(true);
-      stdin.resume();
-
-      const onData = (chunk) => {
-        const str = chunk.toString("utf8");
-        for (const c of str) {
-          if (c === "\r" || c === "\n" || c === "\u0004") {
-            stdin.setRawMode(false);
-            stdin.pause();
-            stdin.removeListener("data", onData);
-            process.stdout.write("\n");
-            rl.close();
-            resolve(input);
-            return;
-          } else if (c === "\u0003") {
-            stdin.setRawMode(false);
-            process.stdout.write("\n");
-            process.exit(0);
-          } else if (c === "\b" || c === "\x7f") {
-            if (input.length > 0) {
-              input = input.slice(0, -1);
-              process.stdout.write("\b \b");
-            }
-          } else {
-            input += c;
-            process.stdout.write("*");
-          }
-        }
-      };
-
-      stdin.on("data", onData);
-    } else {
+export function askPassword(question) {
+  return new Promise((resolve) => {
+    if (!process.stdin.isTTY) {
+      // Non-TTY (piped) mode: do NOT attach output stream so input is not echoed
+      const rl = readline.createInterface({
+        input: process.stdin,
+      });
       rl.question(question, (answer) => {
         rl.close();
         resolve(answer.trim());
       });
+      return;
     }
+
+    // TTY mode: raw mode directly on stdin with NO readline output
+    process.stdout.write(question);
+    const stdin = process.stdin;
+    const wasRaw = stdin.isRaw;
+    stdin.setRawMode(true);
+    stdin.resume();
+
+    let input = "";
+    const onData = (chunk) => {
+      const str = chunk.toString("utf8");
+      for (const c of str) {
+        if (c === "\r" || c === "\n" || c === "\u0004") {
+          stdin.setRawMode(wasRaw ?? false);
+          stdin.pause();
+          stdin.removeListener("data", onData);
+          process.stdout.write("\n");
+          resolve(input);
+          return;
+        } else if (c === "\u0003") {
+          stdin.setRawMode(wasRaw ?? false);
+          process.stdout.write("\n");
+          process.exit(0);
+        } else if (c === "\b" || c === "\x7f") {
+          if (input.length > 0) {
+            input = input.slice(0, -1);
+            process.stdout.write("\b \b");
+          }
+        } else {
+          input += c;
+          process.stdout.write("*");
+        }
+      }
+    };
+    stdin.on("data", onData);
   });
 }
 
-function updateJsonConfigFile(configPath, serverConfig) {
-  let json = {};
-  if (fs.existsSync(configPath)) {
-    try {
-      json = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    } catch {
-      json = {};
-    }
+export function ask(question, isPassword = false) {
+  return isPassword ? askPassword(question) : askText(question);
+}
+
+export function saveEnvFile(envPath, { baseUrl, timeoutMs, username, password }) {
+  const envContent = [
+    `LMS_BASE_URL=${serializeEnvValue(baseUrl)}`,
+    `TIMEOUT_MS=${serializeEnvValue(timeoutMs)}`,
+    "",
+    "# Auto-login credentials",
+    `LMS_USERNAME=${serializeEnvValue(username)}`,
+    `LMS_PASSWORD=${serializeEnvValue(password)}`,
+    "",
+  ].join("\n");
+
+  fs.writeFileSync(envPath, envContent, { mode: 0o600, encoding: "utf8" });
+  try {
+    fs.chmodSync(envPath, 0o600);
+  } catch {
+    // Ignore on filesystems without POSIX permissions
   }
-  if (!json.mcpServers) json.mcpServers = {};
-  json.mcpServers["hanu-lms"] = serverConfig;
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(configPath, JSON.stringify(json, null, 2), "utf8");
 }
 
 async function main() {
@@ -100,12 +249,13 @@ async function main() {
   let existingTimeout = "5000";
 
   if (fs.existsSync(envPath)) {
-    const content = fs.readFileSync(envPath, "utf8");
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("LMS_BASE_URL=")) existingBaseUrl = trimmed.split("=")[1].trim();
-      if (trimmed.startsWith("LMS_USERNAME=")) existingUsername = trimmed.split("=")[1].trim();
-      if (trimmed.startsWith("TIMEOUT_MS=")) existingTimeout = trimmed.split("=")[1].trim();
+    try {
+      const parsed = parseEnvContent(fs.readFileSync(envPath, "utf8"));
+      if (parsed.LMS_BASE_URL) existingBaseUrl = parsed.LMS_BASE_URL;
+      if (parsed.LMS_USERNAME) existingUsername = parsed.LMS_USERNAME;
+      if (parsed.TIMEOUT_MS) existingTimeout = parsed.TIMEOUT_MS;
+    } catch {
+      // Ignore read errors
     }
   }
 
@@ -159,59 +309,124 @@ async function main() {
     }
   }
 
-  // 5. Save to .env
-  const envContent = [
-    `LMS_BASE_URL=${baseUrl}`,
-    `TIMEOUT_MS=${timeoutMs}`,
-    "",
-    "# Auto-login credentials",
-    `LMS_USERNAME=${username}`,
-    `LMS_PASSWORD=${password}`,
-    "",
-  ].join("\n");
+  // 5. Save to .env with 0600 permissions and escaped values
+  saveEnvFile(envPath, { baseUrl, timeoutMs, username, password });
+  console.log(`\n🎉 Đã lưu cấu hình an toàn (permissions: 0600) vào: ${envPath}`);
 
-  fs.writeFileSync(envPath, envContent, "utf8");
-  console.log(`\n🎉 Đã lưu cấu hình an toàn vào: ${envPath}`);
-
-  // 6. Generate MCP server config
+  // 6. Define configurations for clients
   const mcpServerConfig = {
     command: nodePath,
     args: [`--env-file=${envPath}`, distIndexPath],
   };
 
-  const jsonSnippet = JSON.stringify({ mcpServers: { "hanu-lms": mcpServerConfig } }, null, 2);
+  const openCodeConfig = {
+    type: "local",
+    command: [nodePath, `--env-file=${envPath}`, distIndexPath],
+    enabled: true,
+    timeout: 60000,
+  };
 
-  // 7. Auto-configure Claude Desktop or Cursor if available on macOS
-  const platform = os.platform();
-  const claudePath = platform === "darwin"
-    ? path.join(os.homedir(), "Library/Application Support/Claude/claude_desktop_config.json")
-    : null;
-  const cursorPath = path.join(os.homedir(), ".cursor/mcp.json");
-
+  // 7. Auto-detect and configure: Claude Code, OpenCode, Codex, Antigravity
   console.log("\n-------------------------------------------------");
-  console.log("   Cấu hình AI Client (Claude Desktop / Cursor / VS Code)");
+  console.log("   Cấu hình AI Clients (Claude Code, OpenCode, Codex, Antigravity)");
   console.log("-------------------------------------------------");
 
-  if (claudePath && fs.existsSync(path.dirname(claudePath))) {
-    const addClaude = await ask("Tự động đăng ký MCP vào Claude Desktop? (Y/n): ");
-    if (!addClaude || addClaude.toLowerCase() === "y") {
-      updateJsonConfigFile(claudePath, mcpServerConfig);
-      console.log(`✅ Đã cập nhật file: ${claudePath}`);
+  const clients = [
+    {
+      name: "Claude Code",
+      detect: () => fs.existsSync(path.join(os.homedir(), ".claude.json")) || fs.existsSync(path.join(os.homedir(), ".claude")),
+      getConfigPath: () => path.join(os.homedir(), ".claude.json"),
+      key: "mcpServers",
+      getConfig: () => mcpServerConfig,
+    },
+    {
+      name: "OpenCode",
+      detect: () => {
+        const dir = path.join(os.homedir(), ".config/opencode");
+        return fs.existsSync(dir) || fs.existsSync(path.join(dir, "opencode.jsonc")) || fs.existsSync(path.join(dir, "opencode.json"));
+      },
+      getConfigPath: () => {
+        const dir = path.join(os.homedir(), ".config/opencode");
+        if (fs.existsSync(path.join(dir, "opencode.jsonc"))) return path.join(dir, "opencode.jsonc");
+        if (fs.existsSync(path.join(dir, "opencode.json"))) return path.join(dir, "opencode.json");
+        return path.join(dir, "opencode.jsonc");
+      },
+      key: "mcp",
+      getConfig: () => openCodeConfig,
+    },
+    {
+      name: "Codex",
+      detect: () => {
+        const dir = path.join(os.homedir(), ".codex");
+        const altDir = path.join(os.homedir(), ".config/codex");
+        return fs.existsSync(dir) || fs.existsSync(altDir);
+      },
+      getConfigPath: () => {
+        const dir = path.join(os.homedir(), ".codex");
+        if (fs.existsSync(path.join(dir, "mcp.json"))) return path.join(dir, "mcp.json");
+        return path.join(dir, "config.json");
+      },
+      key: "mcpServers",
+      getConfig: () => mcpServerConfig,
+    },
+    {
+      name: "Antigravity",
+      detect: () => {
+        const dir = path.join(os.homedir(), ".gemini");
+        return fs.existsSync(dir);
+      },
+      getConfigPath: () => path.join(os.homedir(), ".gemini/config/mcp_config.json"),
+      key: "mcpServers",
+      getConfig: () => mcpServerConfig,
+    },
+  ];
+
+  let detectedCount = 0;
+  for (const client of clients) {
+    if (client.detect()) {
+      detectedCount++;
+      const targetPath = client.getConfigPath();
+      const answer = await ask(`Phát hiện ${client.name} (${targetPath}).\n  👉 Tự động đăng ký MCP vào ${client.name}? (Y/n): `);
+      if (!answer || answer.toLowerCase() === "y") {
+        const ok = updateJsonConfigFile(targetPath, client.getConfig(), client.key);
+        if (ok) {
+          console.log(`  ✅ Đã đăng ký thành công vào: ${targetPath}\n`);
+        } else {
+          console.log(`  ⚠️  Không thể tự động ghi file cấu hình ${client.name}.\n`);
+        }
+      }
     }
   }
 
-  const addCursor = await ask("Tự động đăng ký MCP vào Cursor (~/.cursor/mcp.json)? (Y/n): ");
-  if (!addCursor || addCursor.toLowerCase() === "y") {
-    updateJsonConfigFile(cursorPath, mcpServerConfig);
-    console.log(`✅ Đã cập nhật file: ${cursorPath}`);
+  if (detectedCount === 0) {
+    console.log("ℹ️  Chưa phát hiện tự động thư mục của Claude Code, OpenCode, Codex hoặc Antigravity.");
   }
 
-  console.log("\n📋 Đoạn cấu hình JSON của bạn (để copy thủ công khi cần):");
-  console.log(jsonSnippet);
-  console.log("\n✨ Setup hoàn tất! Khởi động lại Cursor hoặc Claude Desktop để bắt đầu sử dụng.");
+  // 8. Output configurations for manual copy
+  console.log("\n=================================================");
+  console.log("   Cấu hình MCP cho các AI Client (Copy thủ công)");
+  console.log("=================================================\n");
+
+  console.log("1. Claude Code:");
+  console.log(`   Lệnh CLI: claude mcp add hanu-lms -- ${nodePath} --env-file=${envPath} ${distIndexPath}`);
+  console.log("   Hoặc trong ~/.claude.json:");
+  console.log(JSON.stringify({ mcpServers: { "hanu-lms": mcpServerConfig } }, null, 2));
+
+  console.log("\n2. OpenCode (~/.config/opencode/opencode.jsonc):");
+  console.log(JSON.stringify({ mcp: { "hanu-lms": openCodeConfig } }, null, 2));
+
+  console.log("\n3. Codex (~/.codex/config.json):");
+  console.log(JSON.stringify({ mcpServers: { "hanu-lms": mcpServerConfig } }, null, 2));
+
+  console.log("\n4. Antigravity (~/.gemini/config/mcp_config.json):");
+  console.log(JSON.stringify({ mcpServers: { "hanu-lms": mcpServerConfig } }, null, 2));
+
+  console.log("\n✨ Setup hoàn tất! Bạn có thể khởi động AI Client của mình để bắt đầu.");
 }
 
-main().catch((err) => {
-  console.error("Lỗi:", err);
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  main().catch((err) => {
+    console.error("Lỗi:", err);
+    process.exit(1);
+  });
+}
