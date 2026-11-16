@@ -40,6 +40,12 @@ test("assignments list enrolled course activities without relying on calendar ev
   assert.equal(requests[1].options.redirect, "manual");
 });
 
+test("assignments omit links inside hidden rows", async (t) => {
+  const hidden = table.replace('<tr><td>', '<tr hidden><td>');
+  const { service } = setup(t, [courses(), page(html(hidden.replace('<a href="' + baseUrl + '/mod/assign/view.php?id=42">Duplicate</a>', 'Duplicate')))]);
+  assert.deepEqual((await service.getAssignments()).map(item => item.courseModuleId), [45]);
+});
+
 test("assignments follow course pagination and can select a course on a later page", async (t) => {
   const { service, requests } = setup(t, [
     courses([{ id: 7, fullname: "First course" }], 1),

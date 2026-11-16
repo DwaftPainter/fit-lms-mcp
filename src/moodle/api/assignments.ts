@@ -1,23 +1,9 @@
 import { parse, type DefaultTreeAdapterTypes } from "parse5";
 import { assignmentUrl } from "../assignment-url.js";
 import { MoodleAuthError, MoodleError } from "../errors.js";
+import { nodes, attr, hasClass, isHidden } from "../html.js";
 
-type Node = DefaultTreeAdapterTypes.Node;
 type Element = DefaultTreeAdapterTypes.Element;
-
-function* nodes(root: Node): Generator<Node> {
-  const stack = [root];
-  while (stack.length) {
-    const node = stack.pop()!;
-    yield node;
-    if ("childNodes" in node && !("tagName" in node && ["script", "style", "template"].includes(node.tagName))) {
-      stack.push(...[...node.childNodes].reverse());
-    }
-  }
-}
-
-const attr = (element: Element, name: string) => element.attrs.find(attribute => attribute.name === name)?.value;
-const hasClass = (element: Element, name: string) => attr(element, "class")?.split(/\s+/).includes(name);
 
 export interface AssignmentLink {
   courseModuleId: number;
@@ -46,6 +32,12 @@ export function parseAssignmentIndex(html: string, baseUrl: string): AssignmentL
   for (const table of tables) {
     for (const node of nodes(table)) {
       if (!("tagName" in node) || node.tagName !== "a") continue;
+      let hidden = false;
+      for (let ancestor: Element | null = node; ancestor; ancestor = ancestor.parentNode && "tagName" in ancestor.parentNode ? ancestor.parentNode : null) {
+        if (isHidden(ancestor)) { hidden = true; break; }
+        if (ancestor === table) break;
+      }
+      if (hidden) continue;
       const url = assignmentUrl(attr(node, "href"), baseUrl);
       if (!url) continue;
       const courseModuleId = Number(new URL(url).searchParams.get("id"));

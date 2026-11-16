@@ -8,10 +8,16 @@ import { toIsoString } from "../shared/date.js";
 export const deadlineInputSchema = z.object({
   from: z.string().datetime({ offset: true }).optional().describe("Inclusive due date lower bound, ISO 8601 with timezone; defaults to now"),
   to: z.string().datetime({ offset: true }).optional().describe("Inclusive due date upper bound, ISO 8601 with timezone"),
-  courseId: z.number().int().positive().optional().describe("Only deadlines for this course"),
+  courseId: z.number().int().positive().safe().optional().describe("Only deadlines for this course"),
 });
 
 export type DeadlineInput = z.infer<typeof deadlineInputSchema>;
+
+export const upcomingDeadlineInputSchema = deadlineInputSchema.extend({
+  daysAhead: z.number().int().min(1).max(365).default(7).describe("Look ahead this many days; defaults to 7"),
+  includePast: z.boolean().default(false).describe("Include past due dates when no explicit from date is supplied"),
+});
+export type UpcomingDeadlineInput = z.input<typeof upcomingDeadlineInputSchema>;
 
 export interface DeadlineSummary {
   eventId: number;
@@ -24,6 +30,19 @@ export interface DeadlineSummary {
 
 export class DeadlineService {
   constructor(private readonly client: MoodleClient, private readonly baseUrl: string) {}
+
+  async getUpcomingDeadlines(input: UpcomingDeadlineInput = {}) {
+    const now = Date.now();
+    const deadlines = await this.getDeadlines({
+      from: input.from ?? new Date(input.includePast ? 0 : now).toISOString(),
+      to: input.to ?? new Date(now + (input.daysAhead ?? 7) * 86400000).toISOString(),
+      courseId: input.courseId,
+    });
+    return deadlines.map(deadline => ({
+      ...deadline,
+      courseModuleId: deadline.url ? Number(new URL(deadline.url).searchParams.get("id")) : null,
+    }));
+  }
 
   async getDeadlines(input: DeadlineInput = {}): Promise<DeadlineSummary[]> {
     const from = input.from ? Date.parse(input.from) : Date.now();

@@ -9,6 +9,17 @@ export interface AssignmentSummary extends AssignmentLink { courseId: number; co
 export class AssignmentService {
   constructor(private readonly client: MoodleClient, private readonly baseUrl: string) {}
 
+  async getCourseAssignments(courseId: number) {
+    return (await this.getAssignments({ courseId })).map(assignment => ({
+      id: assignment.courseModuleId,
+      idType: "courseModule" as const,
+      name: assignment.title,
+      courseId: assignment.courseId,
+      courseName: assignment.courseName,
+      url: assignment.url,
+    }));
+  }
+
   async getAssignments(input: AssignmentInput = {}): Promise<AssignmentSummary[]> {
     const courses = await new CourseService(this.client).getMyCourses();
     if (input.courseId && !courses.some(course => course.id === input.courseId)) {

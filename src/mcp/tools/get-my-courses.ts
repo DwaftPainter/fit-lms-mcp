@@ -19,6 +19,7 @@ const schema = z.object({
 
 export class GetMyCoursesTool extends MCPTool<GetMyCoursesInput> {
   name = "get_my_courses";
+  annotations = { readOnlyHint: true, destructiveHint: false };
   description = "Get the list of enrolled courses for the authenticated student";
   schema = schema;
 
