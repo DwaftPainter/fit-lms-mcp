@@ -1,11 +1,7 @@
-import { AuthProvider } from "./auth/auth-provider.js";
-import {
-  MoodleApiError,
-  MoodleAuthError,
-  MoodleError,
-  MoodleNetworkError,
-  MoodleSessionKeyError,
-} from "./errors.js";
+import { AuthProvider, MoodleSessionCredentials } from "./auth/auth-provider.js";
+import { validateCredentials } from "./auth/credentials.js";
+import { MoodleAuthError, MoodleError, MoodleNetworkError } from "./errors.js";
+import { decodeMoodleResponses } from "./response.js";
 
 export interface MoodleClientOptions {
   baseUrl: string;
@@ -13,24 +9,10 @@ export interface MoodleClientOptions {
   timeoutMs?: number;
 }
 
-interface MoodleAjaxRequestPayload<TArgs> {
-  index: number;
-  methodname: string;
-  args: TArgs;
-}
+export interface MoodleCall<TArgs = unknown> { method: string; args: TArgs; }
 
-interface MoodleAjaxResponsePayload<TResult> {
-  error: boolean;
-  data?: TResult;
-  exception?: {
-    errorcode?: string;
-    message?: string;
-    link?: string;
-    moreinfourl?: string;
-  };
-  errorcode?: string;
-  message?: string;
-}
+const responseError = () => new MoodleError("Moodle returned an invalid or oversized response", "MOODLE_RESPONSE_ERROR");
+const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 export class MoodleClient {
   private readonly baseUrl: string;
@@ -38,114 +20,109 @@ export class MoodleClient {
   private readonly timeoutMs: number;
 
   constructor(options: MoodleClientOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/$/, "");
+    const base = new URL(options.baseUrl);
+    if (!["http:", "https:"].includes(base.protocol) || base.username || base.password || base.search || base.hash) {
+      throw new MoodleError("Invalid Moodle base URL", "INVALID_CONFIG");
+    }
+    this.baseUrl = base.toString().replace(/\/$/, "");
     this.authProvider = options.authProvider;
     this.timeoutMs = options.timeoutMs ?? 5000;
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs <= 0 || this.timeoutMs > 2147483647) {
+      throw new MoodleError("Invalid Moodle request timeout", "INVALID_CONFIG");
+    }
   }
 
-  /** Fetch only the authenticated, read-only assignment index for an enrolled course. */
-  async getAssignmentIndex(courseId: number): Promise<string> {
+  async call<TArgs, TResult>(method: string, args: TArgs): Promise<TResult> {
+    return (await this.callBatch<TArgs, TResult>([{ method, args }]))[0];
+  }
+
+  /** Results follow request order. The first per-call error rejects the whole batch. */
+  async callBatch<TArgs = unknown, TResult = unknown>(requests: MoodleCall<TArgs>[]): Promise<TResult[]> {
+    if (!requests.length) return [];
+    if (requests.length > 50 || requests.some(request => !/^[a-z][a-z0-9_]{0,127}$/.test(request.method))) {
+      throw new MoodleError("A Moodle batch must contain at most 50 valid method names", "INVALID_REQUEST");
+    }
+    const credentials = await this.credentials();
+    const { response, body } = await this.send(`/lib/ajax/service.php?sesskey=${encodeURIComponent(credentials.sesskey)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(requests.map((request, index) => ({ index, methodname: request.method, args: request.args }))),
+    }, credentials);
+    let parsed: unknown;
+    try { parsed = JSON.parse(body); } catch {
+      if (!response.ok) throw this.httpError(response.status);
+      if (/id=["']page-login-index["']/.test(body)) throw this.loginError();
+      throw responseError();
+    }
+    // Moodle can return meaningful JSON errors even with a non-2xx HTTP status.
+    const data = decodeMoodleResponses(parsed, requests.length, credentials);
+    if (!response.ok) throw this.httpError(response.status);
+    return data as TResult[];
+  }
+
+  getAssignmentIndex(courseId: number): Promise<string> {
+    return this.getPage("/mod/assign/index.php", courseId);
+  }
+
+  getCoursePage(courseId: number): Promise<string> {
+    return this.getPage("/course/view.php", courseId);
+  }
+
+  private async getPage(path: string, courseId: number): Promise<string> {
+    if (!Number.isSafeInteger(courseId) || courseId <= 0) throw new MoodleError("Invalid course ID", "INVALID_REQUEST");
+    const { response, body } = await this.send(`${path}?id=${courseId}`, { headers: { Accept: "text/html" } }, await this.credentials());
+    if (!response.ok) throw this.httpError(response.status);
+    if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) throw responseError();
+    if (/id=["']page-login-index["']/.test(body)) throw this.loginError();
+    return body;
+  }
+
+  private async credentials(): Promise<MoodleSessionCredentials> {
     const credentials = await this.authProvider.getCredentials();
+    validateCredentials(credentials);
+    return credentials;
+  }
+
+  private loginError(): MoodleAuthError {
+    return new MoodleAuthError("Sign in to the LMS, refresh LMS_MOODLE_SESSION and LMS_MOODLE_SESSKEY together, then restart the MCP server");
+  }
+
+  private httpError(status: number): MoodleError {
+    return new MoodleError(`Moodle HTTP request failed (${status})`, "MOODLE_HTTP_ERROR");
+  }
+
+  private async send(path: string, init: RequestInit, credentials: MoodleSessionCredentials): Promise<{ response: Response; body: string }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      const response = await fetch(`${this.baseUrl}/mod/assign/index.php?id=${courseId}`, {
-        headers: { Accept: "text/html", Cookie: `MoodleSession=${credentials.session}` },
-        redirect: "manual",
-        signal: controller.signal,
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        headers: { ...init.headers, Cookie: `MoodleSession=${credentials.session}` },
+        redirect: "manual", signal: controller.signal,
       });
-      if ([301, 302, 303, 307, 308, 401].includes(response.status)) {
-        throw new MoodleAuthError("Moodle session is unavailable; refresh the session credentials");
+      if ([301, 302, 303, 307, 308, 401].includes(response.status)) throw this.loginError();
+      if (Number(response.headers.get("content-length")) > MAX_RESPONSE_BYTES) {
+        controller.abort();
+        throw responseError();
       }
-      if (!response.ok) throw new MoodleError(`Moodle assignment index failed with HTTP ${response.status}`);
-      if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) {
-        throw new MoodleError("Expected Moodle assignment HTML", "MOODLE_RESPONSE_ERROR");
-      }
-      return await response.text();
+      const reader = response.body?.getReader();
+      if (!reader) return { response, body: "" };
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > MAX_RESPONSE_BYTES) { controller.abort(); throw responseError(); }
+          chunks.push(value);
+        }
+      } finally { reader.releaseLock(); }
+      return { response, body: Buffer.concat(chunks).toString("utf8") };
     } catch (error: unknown) {
       if (error instanceof MoodleError) throw error;
-      if (controller.signal.aborted) throw new MoodleNetworkError("Moodle assignment index timed out", "NETWORK_TIMEOUT");
-      throw new MoodleNetworkError("Network error reading Moodle assignment index", "NETWORK_ERROR");
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  async call<TArgs, TResult>(methodname: string, args: TArgs): Promise<TResult> {
-    const credentials = await this.authProvider.getCredentials();
-    const endpoint = `${this.baseUrl}/lib/ajax/service.php?sesskey=${encodeURIComponent(
-      credentials.sesskey,
-    )}&info=${encodeURIComponent(methodname)}`;
-
-    const payload: MoodleAjaxRequestPayload<TArgs>[] = [
-      {
-        index: 0,
-        methodname,
-        args,
-      },
-    ];
-
-    const controller = new AbortController();
-    const timeoutTimer = setTimeout(() => controller.abort(), this.timeoutMs);
-
-    let parsed: unknown;
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Cookie: `MoodleSession=${credentials.session}`,
-        },
-        body: JSON.stringify(payload),
-        redirect: "manual",
-        signal: controller.signal,
-      });
-      if ([301, 302, 303, 307, 308, 401].includes(response.status)) {
-        throw new MoodleAuthError("Moodle session is unavailable; refresh the session credentials");
-      }
-      if (!response.ok) {
-        throw new MoodleError(`Moodle HTTP request failed with status ${response.status}`);
-      }
-      try {
-        parsed = await response.json();
-      } catch (error: unknown) {
-        if (controller.signal.aborted) throw error;
-        throw new MoodleError("Failed to parse JSON response from Moodle");
-      }
-    } catch (err: unknown) {
-      if (err instanceof MoodleError) throw err;
-      if (controller.signal.aborted) {
-        throw new MoodleNetworkError(`Request to Moodle timed out after ${this.timeoutMs}ms`, "NETWORK_TIMEOUT");
-      }
+      if (controller.signal.aborted) throw new MoodleNetworkError("Moodle request timed out", "NETWORK_TIMEOUT");
       throw new MoodleNetworkError("Network error communicating with Moodle", "NETWORK_ERROR");
-    } finally {
-      clearTimeout(timeoutTimer);
-    }
-
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      throw new MoodleError("Unexpected response shape from Moodle: expected non-empty array");
-    }
-
-    const envelope = parsed[0] as MoodleAjaxResponsePayload<TResult>;
-
-    if (envelope.error) {
-      const errorcode = envelope.exception?.errorcode ?? envelope.errorcode;
-      const message = envelope.exception?.message ?? envelope.message ?? "Unknown Moodle error";
-
-      if (errorcode === "servicerequireslogin") {
-        throw new MoodleAuthError(message, "AUTH_REQUIRED");
-      }
-      if (errorcode === "invalidsesskey") {
-        throw new MoodleSessionKeyError(message, "INVALID_SESSION_KEY");
-      }
-      if (errorcode === "missingparam") {
-        throw new MoodleSessionKeyError(message, "MISSING_SESSION_KEY");
-      }
-
-      throw new MoodleApiError(message, errorcode, envelope.exception);
-    }
-
-    return envelope.data as TResult;
+    } finally { clearTimeout(timer); }
   }
 }

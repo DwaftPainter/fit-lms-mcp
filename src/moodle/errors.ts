@@ -3,6 +3,7 @@
  */
 
 export class MoodleError extends Error {
+  requestIndex?: number;
   constructor(message: string, public readonly code: string = "MOODLE_ERROR") {
     super(message);
     this.name = "MoodleError";

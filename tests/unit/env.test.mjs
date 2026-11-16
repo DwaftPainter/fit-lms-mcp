@@ -55,3 +55,14 @@ test("rejects placeholder credentials and invalid timeout", () => {
     },
   );
 });
+
+test("rejects cookie delimiters, control characters and overflowing timeouts without echoing values", () => {
+  for (const fields of [
+    { LMS_MOODLE_SESSION: "private; other=injected" },
+    { LMS_MOODLE_SESSION: "private\nheader" },
+    { LMS_MOODLE_SESSKEY: "private\nkey" },
+    { TIMEOUT_MS: "2147483648" },
+  ]) {
+    assert.throws(() => loadConfig({ ...validEnv, ...fields }), error => !error.message.includes("private"));
+  }
+});

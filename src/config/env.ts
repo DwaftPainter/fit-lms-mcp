@@ -1,3 +1,5 @@
+import { isSafeCookieValue, isSafeSesskey } from "../moodle/auth/credentials.js";
+
 export interface LmsConfig {
   baseUrl: string;
   timeoutMs: number;
@@ -35,15 +37,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): LmsConfig {
   const moodleSesskey = env.LMS_MOODLE_SESSKEY?.trim() ?? "";
   if (!moodleSession || moodleSession === "your_moodle_session_cookie") {
     errors.push("LMS_MOODLE_SESSION is required");
+  } else if (!isSafeCookieValue(moodleSession)) {
+    errors.push("LMS_MOODLE_SESSION must be a single valid cookie value");
   }
   if (!moodleSesskey || moodleSesskey === "your_moodle_sesskey") {
     errors.push("LMS_MOODLE_SESSKEY is required");
+  } else if (!isSafeSesskey(moodleSesskey)) {
+    errors.push("LMS_MOODLE_SESSKEY must not contain whitespace or control characters");
   }
 
   const rawTimeout = env.TIMEOUT_MS?.trim() || "5000";
   const timeoutMs = Number(rawTimeout);
-  if (!/^\d+$/.test(rawTimeout) || !Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
-    errors.push("TIMEOUT_MS must be a positive integer in milliseconds");
+  if (!/^\d+$/.test(rawTimeout) || !Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2147483647) {
+    errors.push("TIMEOUT_MS must be a positive integer in milliseconds, at most 2147483647");
   }
 
   if (errors.length) {
