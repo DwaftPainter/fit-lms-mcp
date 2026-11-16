@@ -1,4 +1,4 @@
-import { fetchEnrolledCourses } from "../moodle/api/courses.js";
+import { fetchAllEnrolledCourses } from "../moodle/api/courses.js";
 import { MoodleClient } from "../moodle/client.js";
 import { toIsoString } from "../shared/date.js";
 
@@ -17,7 +17,7 @@ export class CourseService {
   constructor(private readonly client: MoodleClient) {}
 
   async getMyCourses(classification: string = "all"): Promise<CourseSummary[]> {
-    const rawCourses = await fetchEnrolledCourses(this.client, { classification });
+    const rawCourses = await fetchAllEnrolledCourses(this.client, { classification });
 
     return rawCourses.map((c) => ({
       id: c.id,

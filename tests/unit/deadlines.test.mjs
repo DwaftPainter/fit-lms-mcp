@@ -32,7 +32,7 @@ function setup(t, pages) {
 test("deadlines traverse tied timestamps, deduplicate overlap, filter and normalize actual due dates", async (t) => {
   const { service, requests } = setup(t, [
     { events: [event(10), event(11, { modulename: "quiz" })] },
-    { events: [event(10), event(12, { timesort: 1800000001, course: { id: 8, fullname: "Other course" } }), event(13, { timesort: 1800000002 })] },
+    { events: [event(10), event(12, { course: { id: 8, fullname: "Other course" } }), event(13, { timesort: 1800000002 })] },
     { events: [] },
   ]);
   const result = await service.getDeadlines({ from: "2027-01-15T08:01:40+00:00", to: "2027-01-15T08:01:40Z", courseId: 7 });
@@ -76,6 +76,21 @@ test("deadlines reject reversed date ranges without making requests", async (t) 
   const { service, requests } = setup(t, []);
   await assert.rejects(service.getDeadlines({ from: "2027-02-01T00:00:00Z", to: "2027-01-01T00:00:00Z" }), error => error.code === "INVALID_DATE_RANGE");
   assert.equal(requests.length, 0);
+});
+
+test("deadlines enforce the page safety limit rather than reporting partial success", async (t) => {
+  const { service, requests } = setup(t, Array.from({ length: 100 }, (_, index) => ({ events: [event(index + 1)] })));
+  await assert.rejects(service.getDeadlines(), error => error.code === "MOODLE_PAGINATION_ERROR");
+  assert.equal(requests.length, 100);
+});
+
+test("deadlines filter on actual due dates and sort independently of action order", async (t) => {
+  const { service } = setup(t, [{ events: [
+    event(1, { timestart: 1800000300 }), event(2, { timestart: 1800000200 }),
+    event(3, { timestart: 1800000099 }), event(4, { timestart: 1800000301 }),
+  ] }, { events: [] }]);
+  const result = await service.getDeadlines({ from: "2027-01-15T08:01:40Z", to: "2027-01-15T08:05:00Z" });
+  assert.deepEqual(result.map(deadline => deadline.eventId), [2, 1]);
 });
 
 test("deadline tool validates date formats and course IDs before executing", async () => {
