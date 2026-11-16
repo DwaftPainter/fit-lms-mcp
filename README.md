@@ -4,12 +4,23 @@ A local, read-only MCP server for a student's authorized HANU Moodle data.
 It exposes enrolled courses, course assignments, upcoming deadlines and course
 structure over stdio, using an existing Moodle session.
 
-## Setup
+## Quick Setup (Interactive)
+
+The easiest way to configure and register the MCP server is using the interactive setup assistant:
+
+```bash
+npm install
+npm run setup
+```
+
+The script will prompt for your LMS student ID and password, test the connection, save `.env`, and optionally register the MCP server directly into **Claude Desktop** and **Cursor**.
+
+### Manual Setup
 
 ```bash
 npm ci --ignore-scripts
 cp .env.example .env
-# Fill in your own current session values in .env.
+# Fill in your LMS credentials in .env.
 npm run build
 ```
 
