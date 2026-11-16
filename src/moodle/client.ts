@@ -43,6 +43,34 @@ export class MoodleClient {
     this.timeoutMs = options.timeoutMs ?? 5000;
   }
 
+  /** Fetch only the authenticated, read-only assignment index for an enrolled course. */
+  async getAssignmentIndex(courseId: number): Promise<string> {
+    const credentials = await this.authProvider.getCredentials();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await fetch(`${this.baseUrl}/mod/assign/index.php?id=${courseId}`, {
+        headers: { Accept: "text/html", Cookie: `MoodleSession=${credentials.session}` },
+        redirect: "manual",
+        signal: controller.signal,
+      });
+      if ([301, 302, 303, 307, 308, 401].includes(response.status)) {
+        throw new MoodleAuthError("Moodle session is unavailable; refresh the session credentials");
+      }
+      if (!response.ok) throw new MoodleError(`Moodle assignment index failed with HTTP ${response.status}`);
+      if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) {
+        throw new MoodleError("Expected Moodle assignment HTML", "MOODLE_RESPONSE_ERROR");
+      }
+      return await response.text();
+    } catch (error: unknown) {
+      if (error instanceof MoodleError) throw error;
+      if (controller.signal.aborted) throw new MoodleNetworkError("Moodle assignment index timed out", "NETWORK_TIMEOUT");
+      throw new MoodleNetworkError("Network error reading Moodle assignment index", "NETWORK_ERROR");
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async call<TArgs, TResult>(methodname: string, args: TArgs): Promise<TResult> {
     const credentials = await this.authProvider.getCredentials();
     const endpoint = `${this.baseUrl}/lib/ajax/service.php?sesskey=${encodeURIComponent(
@@ -60,9 +88,9 @@ export class MoodleClient {
     const controller = new AbortController();
     const timeoutTimer = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    let response: Response;
+    let parsed: unknown;
     try {
-      response = await fetch(endpoint, {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -70,27 +98,29 @@ export class MoodleClient {
           Cookie: `MoodleSession=${credentials.session}`,
         },
         body: JSON.stringify(payload),
+        redirect: "manual",
         signal: controller.signal,
       });
+      if ([301, 302, 303, 307, 308, 401].includes(response.status)) {
+        throw new MoodleAuthError("Moodle session is unavailable; refresh the session credentials");
+      }
+      if (!response.ok) {
+        throw new MoodleError(`Moodle HTTP request failed with status ${response.status}`);
+      }
+      try {
+        parsed = await response.json();
+      } catch (error: unknown) {
+        if (controller.signal.aborted) throw error;
+        throw new MoodleError("Failed to parse JSON response from Moodle");
+      }
     } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") {
+      if (err instanceof MoodleError) throw err;
+      if (controller.signal.aborted) {
         throw new MoodleNetworkError(`Request to Moodle timed out after ${this.timeoutMs}ms`, "NETWORK_TIMEOUT");
       }
-      const message = err instanceof Error ? err.message : String(err);
-      throw new MoodleNetworkError(`Network error communicating with Moodle: ${message}`, "NETWORK_ERROR");
+      throw new MoodleNetworkError("Network error communicating with Moodle", "NETWORK_ERROR");
     } finally {
       clearTimeout(timeoutTimer);
-    }
-
-    if (!response.ok) {
-      throw new MoodleError(`Moodle HTTP request failed with status ${response.status}`);
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = await response.json();
-    } catch {
-      throw new MoodleError("Failed to parse JSON response from Moodle");
     }
 
     if (!Array.isArray(parsed) || parsed.length === 0) {
