@@ -1,22 +1,20 @@
-import { MCPTool, MCPInput } from "mcp-framework";
+import { MCPTool } from "mcp-framework";
 import { z } from "zod";
+import { loadConfig } from "../config/env.js";
+import { getAuthProvider } from "../moodle/auth/provider-factory.js";
+import { MoodleClient } from "../moodle/client.js";
+import { AssignmentInput, AssignmentService } from "../services/assignment.service.js";
 
-interface AssignmentsInput {
-    message: string;
-}
+class AssignmentsTool extends MCPTool<AssignmentInput> {
+  name = "assignments";
+  description = "List visible assignments in enrolled courses using authenticated Moodle assignment index pages; optionally filter by courseId. Does not infer submission status or dates.";
+  schema = z.object({ courseId: z.number().int().positive().optional().describe("Only assignments in this enrolled course") });
 
-const schema = z.object({
-    message: z.string().describe("Message to process")
-});
-
-class AssignmentsTool extends MCPTool<AssignmentsInput> {
-    name = "assignments";
-    description = "Assignments tool description";
-    schema = schema;
-
-    async execute(input: AssignmentsInput) {
-        return `Processed: ${input.message}`;
-    }
+  async execute(input: AssignmentInput) {
+    const config = loadConfig();
+    const client = new MoodleClient({ baseUrl: config.baseUrl, authProvider: getAuthProvider(config), timeoutMs: config.timeoutMs });
+    return new AssignmentService(client, config.baseUrl).getAssignments(input);
+  }
 }
 
 export default AssignmentsTool;

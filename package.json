@@ -1,21 +1,58 @@
 {
-  "name": "hanu-lms-mcp",
-  "version": "0.0.1",
-  "description": "hanu-lms-mcp MCP server",
+  "name": "fit-lms-mcp",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) server for HANU Faculty of Information Technology (FIT) Moodle LMS",
   "type": "module",
+  "main": "./dist/index.js",
   "bin": {
-    "hanu-lms-mcp": "./dist/index.js"
+    "fit-lms-mcp": "./dist/index.js",
+    "fit-lms-setup": "./scripts/setup.mjs",
+    "hanu-lms-mcp": "./dist/index.js",
+    "hanu-lms-setup": "./scripts/setup.mjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "scripts/setup.mjs"
   ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "hanu",
+    "hanu-lms",
+    "fit-lms",
+    "fit-hanu",
+    "moodle",
+    "claude-code",
+    "opencode",
+    "cursor"
+  ],
+  "author": "DwaftPainter",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DwaftPainter/fit-lms-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DwaftPainter/fit-lms-mcp/issues"
+  },
+  "homepage": "https://github.com/DwaftPainter/fit-lms-mcp#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc && mcp-build",
     "watch": "tsc --watch",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "setup": "node scripts/setup.mjs",
+    "test": "tsc && node --test tests/unit/*.test.mjs tests/integration/*.test.mjs",
+    "test:live": "tsc && node scripts/smoke-live.mjs",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
-    "mcp-framework": "^0.2.22"
+    "mcp-framework": "^0.2.22",
+    "parse5": "7.3.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",

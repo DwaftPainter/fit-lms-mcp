@@ -1,0 +1,6 @@
+{"check":"live-smoke","verifiedAt":"2026-11-16T04:35:24.756Z","credentialsRecorded":false,"privateContentRecorded":false}
+{"check":"get_my_courses","passed":true,"courses":4}
+{"check":"get_course_assignments","passed":true,"coursesChecked":4,"assignments":18}
+{"check":"get_course_contents","passed":true,"coursesChecked":4,"sections":26,"modules":135}
+{"check":"get_upcoming_deadlines","passed":true,"daysAhead":7,"deadlines":1}
+{"check":"batch","passed":true,"calls":2}

@@ -1,0 +1,193 @@
+{
+  "verifiedAt": "2026-11-16T04:28:50.937Z",
+  "source": "Isolated Google Chrome, DevTools Network protocol via Playwright; normal read-only LMS page navigation",
+  "pages": [
+    {
+      "page": "dashboard",
+      "status": 200,
+      "authenticated": true
+    },
+    {
+      "page": "course",
+      "status": 200,
+      "authenticated": true
+    },
+    {
+      "page": "assignment index",
+      "status": 200,
+      "authenticated": true
+    },
+    {
+      "page": "assignment detail",
+      "status": 200,
+      "authenticated": true
+    }
+  ],
+  "ajaxRequests": [
+    {
+      "method": "POST",
+      "endpointPath": "/lib/ajax/service.php",
+      "hasSesskey": true,
+      "calls": [
+        {
+          "methodname": "media_videojs_get_language",
+          "args": {
+            "lang": "string"
+          }
+        }
+      ],
+      "status": 200,
+      "response": [
+        {
+          "error": false,
+          "dataType": "string"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "endpointPath": "/lib/ajax/service.php",
+      "hasSesskey": true,
+      "calls": [
+        {
+          "methodname": "block_recentlyaccesseditems_get_recent_items",
+          "args": {
+            "limit": "number"
+          }
+        }
+      ],
+      "status": 200,
+      "response": [
+        {
+          "error": false,
+          "dataType": "array"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "endpointPath": "/lib/ajax/service.php",
+      "hasSesskey": true,
+      "calls": [
+        {
+          "methodname": "core_calendar_get_action_events_by_timesort",
+          "args": {
+            "limitnum": "number",
+            "timesortfrom": "number",
+            "timesortto": "number",
+            "limittononsuspendedevents": "boolean"
+          }
+        }
+      ],
+      "status": 200,
+      "response": [
+        {
+          "error": false,
+          "dataType": "object",
+          "dataFields": [
+            "events",
+            "firstid",
+            "lastid"
+          ],
+          "eventFields": [
+            "id",
+            "name",
+            "description",
+            "descriptionformat",
+            "location",
+            "categoryid",
+            "groupid",
+            "userid",
+            "repeatid",
+            "eventcount",
+            "component",
+            "modulename",
+            "activityname",
+            "activitystr",
+            "instance",
+            "eventtype",
+            "timestart",
+            "timeduration",
+            "timesort",
+            "timeusermidnight",
+            "visible",
+            "timemodified",
+            "overdue",
+            "icon",
+            "course",
+            "subscription",
+            "canedit",
+            "candelete",
+            "deleteurl",
+            "editurl",
+            "viewurl",
+            "formattedtime",
+            "isactionevent",
+            "iscourseevent",
+            "iscategoryevent",
+            "groupname",
+            "normalisedeventtype",
+            "normalisedeventtypetext",
+            "action",
+            "purpose",
+            "url"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "endpointPath": "/lib/ajax/service.php",
+      "hasSesskey": true,
+      "calls": [
+        {
+          "methodname": "core_get_user_dates",
+          "args": {
+            "contextid": "number",
+            "timestamps": "array"
+          }
+        }
+      ],
+      "status": 200,
+      "response": [
+        {
+          "error": false,
+          "dataType": "object",
+          "dataFields": [
+            "dates"
+          ]
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "endpointPath": "/lib/ajax/service.php",
+      "hasSesskey": true,
+      "calls": [
+        {
+          "methodname": "core_courseformat_get_state",
+          "args": {
+            "courseid": "number"
+          }
+        }
+      ],
+      "status": 200,
+      "response": [
+        {
+          "error": false,
+          "dataType": "string"
+        }
+      ]
+    }
+  ],
+  "assignmentDetail": {
+    "dueLabelPresent": true,
+    "dueTimestampMatchesCalendar": true,
+    "submissionStatusLabelPresent": true,
+    "cutoffLabelPresent": false
+  },
+  "blockedNonReadOnlyRequests": 0,
+  "pageErrors": 1,
+  "credentialsRecorded": false,
+  "privateContentRecorded": false
+}

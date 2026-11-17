@@ -1,5 +1,7 @@
-import { MCPServer } from "mcp-framework";
+import { loadConfig } from "./config/env.js";
+import { createServer } from "./mcp/server.js";
 
-const server = new MCPServer();
+loadConfig();
 
+const server = createServer();
 server.start();
