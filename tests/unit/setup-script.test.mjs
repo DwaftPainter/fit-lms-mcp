@@ -71,7 +71,7 @@ test("[P2] updateJsonConfigFile supports JSONC comments and updates target key",
   const parsed = JSON.parse(fs.readFileSync(tmpJsonc, "utf8"));
   assert.equal(parsed.existing, true);
   assert.deepEqual(parsed.mcpServers.other, { command: "other-bin" });
-  assert.deepEqual(parsed.mcpServers["hanu-lms"], { command: "node", args: ["test"] });
+  assert.deepEqual(parsed.mcpServers["fit-lms"], { command: "node", args: ["test"] });
 
   fs.unlinkSync(tmpJsonc);
 });
@@ -85,10 +85,73 @@ test("[P2] updateJsonConfigFile updates OpenCode mcp key", () => {
   assert.equal(ok, true);
 
   const parsed = JSON.parse(fs.readFileSync(tmpOpenCode, "utf8"));
-  assert.deepEqual(parsed.mcp["hanu-lms"], serverConfig);
+  assert.deepEqual(parsed.mcp["fit-lms"], serverConfig);
 
   fs.unlinkSync(tmpOpenCode);
 });
+
+test("updateJsonConfigFile preserves string contents while accepting JSONC trailing commas", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fit-jsonc-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, "config.jsonc");
+  const note = 'Keep ,} and ,] and ,  } with "quotes", \\paths and https://example.com/*literal*/';
+  fs.writeFileSync(file, `{
+    // Keep the strings verbatim
+    "note": ${JSON.stringify(note)},
+    "items": ["literal ,]", /* trailing comma */ ],
+    "mcpServers": {"other": {"command": "other",},},
+  }`);
+
+  assert.equal(updateJsonConfigFile(file, { command: "node" }), true);
+  const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.equal(parsed.note, note);
+  assert.deepEqual(parsed.items, ["literal ,]"]);
+  assert.deepEqual(parsed.mcpServers.other, { command: "other" });
+});
+
+for (const key of ["mcpServers", "mcp"]) {
+  test(`updateJsonConfigFile creates a missing config with ${key}.fit-lms`, (t) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fit-new-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const file = path.join(dir, "nested", "config.json");
+    const server = { command: "node" };
+
+    assert.equal(updateJsonConfigFile(file, server, key), true);
+    assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), {
+      [key]: { "fit-lms": server },
+    });
+  });
+
+  for (const name of ["fit-lms", "hanu-lms"]) {
+    test(`updateJsonConfigFile updates existing ${key}.${name} without adding a duplicate`, (t) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fit-server-"));
+      t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+      const file = path.join(dir, "config.json");
+      const other = { command: "other" };
+      fs.writeFileSync(file, JSON.stringify({ [key]: { [name]: { command: "old" }, other } }));
+
+      const server = { command: "new" };
+      assert.equal(updateJsonConfigFile(file, server, key), true);
+      assert.equal(updateJsonConfigFile(file, server, key), true);
+      assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), {
+        [key]: { [name]: server, other },
+      });
+    });
+  }
+
+  for (const value of [null, [], ["existing-server"], "existing-server", false, 1]) {
+    test(`updateJsonConfigFile leaves invalid ${key}=${JSON.stringify(value)} unchanged`, (t) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fit-invalid-"));
+      t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+      const file = path.join(dir, "config.json");
+      const content = JSON.stringify({ keep: true, [key]: value });
+      fs.writeFileSync(file, content);
+
+      assert.equal(updateJsonConfigFile(file, { command: "node" }, key), false);
+      assert.equal(fs.readFileSync(file, "utf8"), content);
+    });
+  }
+}
 
 test("[P2] saveEnvFile creates .env with 0600 mode and secures existing files", () => {
   const tmpEnv = path.join(os.tmpdir(), `test_perms_${Date.now()}.env`);
