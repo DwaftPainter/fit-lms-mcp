@@ -50,7 +50,16 @@ export function parseAssignmentDetail(html: string, baseUrl: string, courseModul
     !hasClass(element, "accesshide") &&
     !isHidden(element)
   );
-  const name = titleElement ? textContent(titleElement) : "";
+  let name = "";
+  if (titleElement) {
+    const small = elements(titleElement).find(e => e.tagName === "small" && !isHidden(e));
+    if (small) {
+      name = textContent(small);
+    }
+    if (!name) {
+      name = textContent(titleElement);
+    }
+  }
   if (!name) {
     throw new MoodleError("Moodle assignment page has no recognizable title", "MOODLE_RESPONSE_ERROR");
   }
