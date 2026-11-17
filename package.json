@@ -1,14 +1,14 @@
 {
   "name": "fit-lms-mcp",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "Model Context Protocol (MCP) server for HANU Faculty of Information Technology (FIT) Moodle LMS",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "fit-lms-mcp": "./dist/index.js",
-    "fit-lms-setup": "./scripts/setup.mjs",
-    "hanu-lms-mcp": "./dist/index.js",
-    "hanu-lms-setup": "./scripts/setup.mjs"
+    "fit-lms-mcp": "dist/index.js",
+    "fit-lms-setup": "scripts/setup.mjs",
+    "hanu-lms-mcp": "dist/index.js",
+    "hanu-lms-setup": "scripts/setup.mjs"
   },
   "files": [
     "dist",
