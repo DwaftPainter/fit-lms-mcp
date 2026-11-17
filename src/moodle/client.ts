@@ -65,17 +65,21 @@ export class MoodleClient {
   }
 
   getAssignmentIndex(courseId: number): Promise<string> {
-    return this.getPage("/mod/assign/index.php", courseId);
+    return this.getPage("/mod/assign/index.php", courseId, "course ID");
   }
 
   getCoursePage(courseId: number): Promise<string> {
-    return this.getPage("/course/view.php", courseId);
+    return this.getPage("/course/view.php", courseId, "course ID");
   }
 
-  private async getPage(path: string, courseId: number): Promise<string> {
-    if (!Number.isSafeInteger(courseId) || courseId <= 0) throw new MoodleError("Invalid course ID", "INVALID_REQUEST");
+  getAssignmentPage(courseModuleId: number): Promise<string> {
+    return this.getPage("/mod/assign/view.php", courseModuleId, "course module ID");
+  }
+
+  private async getPage(path: string, id: number, label = "course ID"): Promise<string> {
+    if (!Number.isSafeInteger(id) || id <= 0) throw new MoodleError(`Invalid ${label}`, "INVALID_REQUEST");
     return this.withAuthRetry(async (credentials) => {
-      const { response, body } = await this.send(`${path}?id=${courseId}`, { headers: { Accept: "text/html" } }, credentials);
+      const { response, body } = await this.send(`${path}?id=${id}`, { headers: { Accept: "text/html" } }, credentials);
       if (!response.ok) throw this.httpError(response.status);
       if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) throw responseError();
       if (/id=["']page-login-index["']/.test(body)) throw this.loginError();
