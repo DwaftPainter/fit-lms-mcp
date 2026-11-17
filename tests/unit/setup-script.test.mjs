@@ -126,4 +126,3 @@ test("[P2] saveEnvFile creates .env with 0600 mode and secures existing files", 
 test("runSetup is exported and callable", () => {
   assert.equal(typeof runSetup, "function");
 });
-
