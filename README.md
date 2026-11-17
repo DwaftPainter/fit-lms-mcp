@@ -1,108 +1,97 @@
-# HANU LMS MCP
+# FIT LMS MCP
 
-A local, read-only MCP server for a student's authorized HANU Moodle data.
-It exposes enrolled courses, course assignments, upcoming deadlines and course
-structure over stdio, using an existing Moodle session.
+A Model Context Protocol (MCP) server providing authorized, read-only access to a student's HANU Faculty of Information Technology (FIT) Moodle LMS (`https://lms.fit.hanu.vn`).
 
-## Quick Setup (Interactive)
+It exposes enrolled courses, course assignments, upcoming deadlines, and course structure over stdio, with **automatic background authentication** and **interactive setup**.
 
-The easiest way to configure and register the MCP server is using the interactive setup assistant:
+---
+
+## 🚀 Quick Start
+
+### Option 1: Use directly with `npx` (No Git clone needed)
+
+You can run the interactive setup assistant anywhere:
 
 ```bash
+npx fit-lms-setup
+```
+
+Then register the server in your AI client using `npx -y fit-lms-mcp`.
+
+---
+
+### Option 2: Clone and run locally
+
+```bash
+git clone https://github.com/DwaftPainter/fit-lms-mcp.git
+cd fit-lms-mcp
 npm install
 npm run setup
 ```
 
-The script will prompt for your LMS student ID and password, test the connection, save `.env`, and optionally register the MCP server directly into **Claude Desktop** and **Cursor**.
+The interactive setup assistant will:
+1. Prompt for your LMS student ID and password (safely masked).
+2. Test the connection against HANU LMS immediately.
+3. Save your `.env` configuration file securely with `0600` permissions.
+4. Automatically register the MCP server into **Claude Code**, **OpenCode**, **Codex**, or **Antigravity**.
 
-### Manual Setup
+---
+
+## ⚙️ Manual Configuration
+
+If you prefer to configure manually, copy the template and edit [.env](file:///.env):
 
 ```bash
-npm ci --ignore-scripts
 cp .env.example .env
-# Fill in your LMS credentials in .env.
 npm run build
 ```
 
-The runtime supports Node.js 18.19+. The `--env-file` examples below require
-Node.js 20.6+; with older Node versions, supply the variables through your MCP
-client's environment instead. The server itself does not automatically load `.env`.
-
-| Variable | Meaning |
-| --- | --- |
-| `LMS_BASE_URL` | Required HTTP(S) Moodle base URL, e.g. `https://lms.fit.hanu.vn`; no credentials, query or fragment |
-| `LMS_USERNAME` | Student ID / username for automatic login (Option 1) |
+| Variable | Description |
+| :--- | :--- |
+| `LMS_BASE_URL` | Required Moodle base URL, e.g. `https://lms.fit.hanu.vn` (no credentials, query or fragment) |
+| `LMS_USERNAME` | Student ID / username for automatic login (Option 1 - Recommended) |
 | `LMS_PASSWORD` | Password for automatic login (Option 1; automatically logs in and refreshes expired sessions) |
-| `LMS_MOODLE_SESSION` | MoodleSession cookie value (Option 2 - Manual session) |
-| `LMS_MOODLE_SESSKEY` | sesskey query value (Option 2 - Manual session) |
-| `TIMEOUT_MS` | Optional request timeout in milliseconds, including response-body reading; default `5000`, maximum `2147483647` |
+| `TIMEOUT_MS` | Optional request timeout in milliseconds (default: `5000`, maximum: `2147483647`) |
+| `LMS_MOODLE_SESSION` | MoodleSession cookie value (Option 2 - Manual legacy session) |
+| `LMS_MOODLE_SESSKEY` | sesskey query parameter from the same session (Option 2 - Manual legacy session) |
 
-Configuration failures name the invalid setting without printing its value.
-Provide either `LMS_USERNAME` and `LMS_PASSWORD` for automatic login, or
-`LMS_MOODLE_SESSION` and `LMS_MOODLE_SESSKEY` for manual session configuration.
-Cookie delimiters/control characters and unsafe sesskeys are rejected. Real
-`.env*` files are ignored by Git; `.env.example` contains placeholders only.
+*Configuration failures name the invalid setting without printing sensitive credential values. Saved `.env` files are ignored by Git.*
 
-## Tools
+---
 
-| Tool | Input | Result |
-| --- | --- | --- |
-| `get_my_courses` | Optional `classification`: `all` (default), `inprogress`, `future`, `past` | Normalized enrolled courses, including IDs, names and optional dates/progress/URLs |
-| `get_course_assignments` | Required positive `courseId` | Visible assignments with `id`, `idType`, `name`, `courseId`, `courseName`, `url` |
-| `get_upcoming_deadlines` | Optional `daysAhead` (1–365, default **7**), `includePast` (default false), `from`, `to`, `courseId` | Assignment due events sorted by due date, with course names and identifiers |
-| `get_course_contents` | Required positive `courseId` | `{courseId, courseName, sections}`; each section contains its number, title, visibility and accessible module metadata |
+## 🤖 AI Client Integration
 
-Examples of tool arguments:
-
+### 1. Claude Code
+Register via CLI:
+```bash
+claude mcp add fit-lms -- node --env-file=/absolute/path/to/fit-lms-mcp/.env /absolute/path/to/fit-lms-mcp/dist/index.js
+```
+Or add to `~/.claude.json`:
 ```json
-{}
+{
+  "mcpServers": {
+    "fit-lms": {
+      "command": "node",
+      "args": [
+        "--env-file=/absolute/path/to/fit-lms-mcp/.env",
+        "/absolute/path/to/fit-lms-mcp/dist/index.js"
+      ]
+    }
+  }
+}
 ```
 
-Use `{}` with `get_my_courses` or `get_upcoming_deadlines`. Select a course ID from
-the course results for the other two tools:
-
-```json
-{ "courseId": 900001 }
-```
-
-```json
-{ "daysAhead": 14, "courseId": 900001 }
-```
-
-```json
-{ "from": "2026-11-01T00:00:00+07:00", "to": "2026-11-30T23:59:59+07:00" }
-```
-
-Deadline `from`/`to` bounds are inclusive ISO 8601 timestamps with a timezone.
-Explicit bounds override the default window. Without `from`, `includePast: true`
-starts at Unix time zero; otherwise the lower bound is now. Without `to`, the
-upper bound is now plus `daysAhead` × 24 hours. Dates are returned as UTC ISO 8601.
-
-Assignment `id` and course-content module `id` identify **course modules**, not
-assignment database records; assignment results state `idType: "courseModule"`.
-Deadlines include `eventId`, `title`, `courseId`, `courseName`, `dueDate`, `url` and
-`courseModuleId` (or `null` when a verified view link is unavailable). Unverified
-open/cutoff dates and submission state are omitted rather than inferred.
-
-The existing `assignments` and `deadlines` tools remain available for compatibility.
-`assignments` accepts an optional course ID and keeps its `courseModuleId`/`title`
-output. `deadlines` keeps its explicit date filters and unbounded future default;
-use `get_upcoming_deadlines` for the seven-day default.
-
-## Connect OpenCode
-
-Merge this entry into `mcp` in `~/.config/opencode/opencode.jsonc` for global use,
-or `opencode.json` in a project. Replace both absolute paths with your checkout.
-
+### 2. OpenCode
+Add to `~/.config/opencode/opencode.jsonc` (or project `opencode.json`):
 ```json
 {
   "mcp": {
-    "hanu-lms": {
+    "fit-lms": {
       "type": "local",
       "command": [
         "node",
-        "--env-file=/absolute/path/to/hanu-lms-mcp/.env",
-        "/absolute/path/to/hanu-lms-mcp/dist/index.js"
+        "--env-file=/absolute/path/to/fit-lms-mcp/.env",
+        "/absolute/path/to/fit-lms-mcp/dist/index.js"
       ],
       "enabled": true,
       "timeout": 60000
@@ -111,107 +100,134 @@ or `opencode.json` in a project. Replace both absolute paths with your checkout.
 }
 ```
 
-For desktop environments without Node on `PATH`, replace `node` with its absolute
-executable path. Run `opencode mcp list`, reopen OpenCode after rebuilding, and ask:
-
-```text
-Use hanu-lms to list my courses, then show what I need to submit in the next 7 days.
-```
-
-For Claude Desktop, the equivalent entry under `mcpServers` is:
-
+### 3. Antigravity
+Add to `~/.gemini/config/mcp_config.json`:
 ```json
 {
   "mcpServers": {
-    "hanu-lms": {
+    "fit-lms": {
       "command": "node",
       "args": [
-        "--env-file=/absolute/path/to/hanu-lms-mcp/.env",
-        "/absolute/path/to/hanu-lms-mcp/dist/index.js"
+        "--env-file=/absolute/path/to/fit-lms-mcp/.env",
+        "/absolute/path/to/fit-lms-mcp/dist/index.js"
       ]
     }
   }
 }
 ```
 
-## Authentication and session management
+### 4. Cursor
+Add to `~/.cursor/mcp.json` or `.cursor/mcp.json` in your project:
+```json
+{
+  "mcpServers": {
+    "fit-lms": {
+      "command": "node",
+      "args": [
+        "--env-file=/absolute/path/to/fit-lms-mcp/.env",
+        "/absolute/path/to/fit-lms-mcp/dist/index.js"
+      ]
+    }
+  }
+}
+```
 
-### Option 1: Automatic login (Recommended)
-Configure `LMS_USERNAME` and `LMS_PASSWORD` in your `.env`. The server automatically performs
-the form login on Moodle, caches the session and sesskey in memory, and transparently
-re-authenticates whenever the session expires. No manual session copying is required.
+### 5. Claude Desktop
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "fit-lms": {
+      "command": "node",
+      "args": [
+        "--env-file=/absolute/path/to/fit-lms-mcp/.env",
+        "/absolute/path/to/fit-lms-mcp/dist/index.js"
+      ]
+    }
+  }
+}
+```
 
-### Option 2: Manual session refresh (Legacy)
-If using `LMS_MOODLE_SESSION` and `LMS_MOODLE_SESSKEY`:
-1. Sign in normally to your own LMS account in your browser.
-2. In browser DevTools, obtain the `MoodleSession` cookie from Application/Storage
-   and the `sesskey` query value from a normal `/lib/ajax/service.php` Network
-   request. Copy both from the same current login into your local `.env`.
-3. Restart/reconnect the MCP server in the client.
+> [!TIP]
+> On macOS with NVM, if your GUI application does not inherit terminal `$PATH`, replace `"node"` with your full Node executable path (e.g. `which node`).
 
-Do not paste live values into chat, screenshots, issues, logs or source control.
-`AUTH_REQUIRED` means Moodle requested authentication. `INVALID_SESSION_KEY` means
-an invalid sesskey and does not prove that the session expired. An empty course list
-alone does not prove authentication failure. A remote `missingparam` may concern any
-method argument; only a known missing local sesskey maps to `MISSING_SESSION_KEY`.
+---
 
-## Verification
+## 🛠️ MCP Tools
+
+| Tool | Input | Output |
+| :--- | :--- | :--- |
+| `get_my_courses` | Optional `classification`: `all` (default), `inprogress`, `future`, `past` | Enrolled courses with ID, course name, short name, start/end dates, progress percentage, and LMS URL |
+| `get_course_assignments` | Required positive integer `courseId` | List of visible assignments in the course with module ID, name, course ID, course name, and view link |
+| `get_upcoming_deadlines` | Optional `daysAhead` (1–365, default **7**), `includePast` (default false), `from`, `to`, `courseId` | Due events sorted in ascending order by due date, with verified course module ID and direct submission link |
+| `get_course_contents` | Required positive integer `courseId` | Course sections, module structure, activity titles, and resource metadata (excludes hidden/restricted items) |
+
+### Tool Argument Examples
+
+- List all enrolled courses:
+  ```json
+  {}
+  ```
+- Upcoming deadlines for the next 7 days:
+  ```json
+  {}
+  ```
+- Deadlines for the next 14 days for a specific course:
+  ```json
+  { "courseId": 660, "daysAhead": 14 }
+  ```
+- Get assignments for course ID 660:
+  ```json
+  { "courseId": 660 }
+  ```
+
+*Compatibility tools `assignments` and `deadlines` remain available for backwards compatibility.*
+
+---
+
+## 🔐 Authentication & Session Management
+
+### Option 1: Automatic Login (Recommended)
+Set `LMS_USERNAME` and `LMS_PASSWORD` in your `.env`.
+- When called, the server automatically executes the 3-step Moodle authentication flow (`logintoken` CSRF retrieval ➔ POST credentials ➔ extract `MoodleSession` cookie ➔ extract `sesskey`).
+- Credentials and session tokens are cached in memory.
+- If a session expires during use, `MoodleClient` **transparently re-authenticates and retries the request once** in the background.
+
+### Option 2: Manual Session Cookies (Legacy)
+If you prefer not to store student credentials in `.env`, provide `LMS_MOODLE_SESSION` and `LMS_MOODLE_SESSKEY`:
+1. Log in to `https://lms.fit.hanu.vn` in your browser.
+2. In DevTools (F12) ➔ Application/Storage ➔ Cookies, copy `MoodleSession`.
+3. In DevTools ➔ Network, filter for `/lib/ajax/service.php` and copy the `sesskey` parameter.
+4. Paste both into `.env`.
+
+---
+
+## 🧪 Verification & Testing
+
+Run the automated test suite (synthetic fixtures, local HTTP server, zero network credentials needed):
 
 ```bash
 npm test
 npm run build
 ```
 
-Default tests use synthetic fixtures and a local HTTP server. They do not contact
-HANU or require credentials. They cover ordered batches, root/array errors,
-malformed responses, response-size limits, timeouts, schema validation, date
-filtering, hidden resources and actual stdio calls to all four canonical tools.
-
-Live verification is opt-in and excluded from the default test command/CI:
+To run the opt-in live smoke verification against HANU LMS:
 
 ```bash
-# After building; Node.js 20.6+ for --env-file.
 LMS_LIVE_SMOKE=1 node --env-file=.env scripts/smoke-live.mjs
-
-# When the required environment variables are already supplied:
-LMS_LIVE_SMOKE=1 npm run test:live
 ```
 
-Without `LMS_LIVE_SMOKE=1`, the live script exits before connecting. The authorized
-smoke test exercises all four tools over stdio for enrolled courses and a two-call
-AJAX batch. It prints only check results and counts. See the dated
-[MVP verification report](docs/MVP_Verification.md) for actual live evidence.
+---
 
-## Retrieval and limits
+## 📂 Source Layout
 
-- Moodle AJAX calls use a session cookie and sesskey. `callBatch` supports up to
-  50 calls, associates results by array position and verifies response count.
-  A failed call rejects the batch with a safe typed error and its `requestIndex`;
-  no partial successful list is returned. Nested JSON strings remain strings until
-  a method-specific adapter explicitly decodes them.
-- Requests reject redirects, apply a timeout through body reading, limit responses
-  to 8 MiB and discard raw server messages/stacks. Authentication failures are not
-  retried. Returned links use the configured LMS and omit session keys/actions.
-- Courses follow `nextoffset`, with deduplication and a 100-page safety limit.
-- Assignment lists and course contents use authenticated HTML. The tested LMS does
-  not expose `mod_assign_get_assignments` or `core_course_get_contents` through
-  session AJAX. Supported Moodle page structures are checked explicitly; other
-  layouts fail rather than silently report an empty course. Hidden/restricted
-  resources are omitted. No resource files are downloaded automatically.
-- Deadlines scan calendar action events from zero, advance both `timesort` and
-  event ID, deduplicate and filter on actual due time (`timestart`). Stalled cursors
-  or more than 100 pages fail explicitly. Events without usable dates are omitted.
-  Calendar action events are not an exhaustive assignment/submission history.
-- Student/group overrides and cutoff-date semantics remain unverified. Browser
-  capture confirms a displayed due date, not every possible override scenario.
+- `src/config/env.ts`: Validates environment settings and credentials.
+- `src/moodle/auth/`: Contains `AutoLoginAuthProvider`, `ManualSessionProvider`, and `provider-factory.ts`.
+- `src/moodle/client.ts`: Reusable Moodle HTTP client with batching and transparent auth retry.
+- `src/services/`: Course, assignment, deadline, and course content services.
+- `src/tools/` & `src/mcp/tools/`: MCP tool definitions and schemas.
+- `scripts/setup.mjs`: Interactive setup assistant.
 
-## Source layout and contracts
+## 📄 License
 
-`src/config` validates environment configuration; `src/moodle` owns transport,
-authentication and parsing; `src/services` normalizes results; `src/tools` and
-`src/mcp/tools` expose MCP schemas. `src/mcp/server.ts` registers the tools.
-
-- [Authentication and request contract](docs/Moodle_Authentication_Request_Contract.md)
-- [Assignment and deadline discovery](docs/Moodle_Assignment_Deadline_Endpoint_Discovery.md)
-- [MVP verification and known limitations](docs/MVP_Verification.md)
-- [Implementation plan and Linear issue index](tasks/plan.md)
+MIT © [DwaftPainter](https://github.com/DwaftPainter)
