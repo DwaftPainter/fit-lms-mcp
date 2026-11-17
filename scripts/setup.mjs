@@ -81,12 +81,16 @@ export function stripJsonComments(text) {
         const end = text.indexOf("*/", i + 2);
         if (end === -1) break;
         i = end + 1;
+      } else if (char === "}" || char === "]") {
+        // Strip trailing commas only outside strings, after skipping comments.
+        result = result.replace(/,(\s*)$/, "$1");
+        result += char;
       } else {
         result += char;
       }
     }
   }
-  return result.replace(/,(\s*[}\]])/g, "$1");
+  return result;
 }
 
 export function updateJsonConfigFile(configPath, serverConfig, key = "mcpServers") {
@@ -119,10 +123,20 @@ export function updateJsonConfigFile(configPath, serverConfig, key = "mcpServers
     return false;
   }
 
-  if (!json[key] || typeof json[key] !== "object" || Array.isArray(json[key])) {
+  if (Object.hasOwn(json, key) &&
+      (json[key] === null || typeof json[key] !== "object" || Array.isArray(json[key]))) {
+    console.error(`\n❌ Cấu trúc ${key} không hợp lệ (không phải JSON object): ${configPath}`);
+    console.error(`   ⚠️  Đã HỦY thao tác ghi để bảo vệ file của bạn.`);
+    return false;
+  }
+  if (!Object.hasOwn(json, key)) {
     json[key] = {};
   }
-  json[key]["hanu-lms"] = serverConfig;
+  // Reuse the legacy name when present so setup does not add a second server.
+  const serverName = !Object.hasOwn(json[key], "fit-lms") && Object.hasOwn(json[key], "hanu-lms")
+    ? "hanu-lms"
+    : "fit-lms";
+  json[key][serverName] = serverConfig;
 
   try {
     fs.mkdirSync(path.dirname(configPath), { recursive: true });

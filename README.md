@@ -277,6 +277,8 @@ Version 2.0.0 requires Node.js 22 or later; Node.js 18 and 20 are no longer supp
 
 The `publish.yml` workflow publishes on a `v*` Git tag push or a manual workflow run. Creating a GitHub Release does not trigger a second publish. Update `package.json` and `package-lock.json` before tagging a release, and make the tag match the package version (for example, `v2.0.0`). Published npm versions cannot be reused, even after unpublishing.
 
+For manual runs, the `tag` input selects the npm distribution channel: `latest`, `beta`, or `next`. To publish the stable version `2.0.0` from `package.json`, select `latest`. The package version (`2.0.0`), Git tag (`v2.0.0`), and npm channel (`latest`) are separate values.
+
 Publishing uses npm trusted publishing (OIDC) from a GitHub-hosted runner with Node.js 24 and npm 11. No `NPM_TOKEN` secret is required. Configure the package's Trusted Publisher on npm with:
 
 - **Organization or user:** `DwaftPainter`

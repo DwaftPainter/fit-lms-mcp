@@ -7,9 +7,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'npm tag (e.g. latest, beta)'
+        description: 'npm distribution channel (not the package version)'
+        type: choice
         required: false
         default: 'latest'
+        options:
+          - latest
+          - beta
+          - next
 
 jobs:
   publish:
