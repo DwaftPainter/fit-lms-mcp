@@ -221,26 +221,40 @@ export function saveEnvFile(envPath, { baseUrl, timeoutMs, username, password })
   }
 }
 
-async function main() {
+export async function runSetup() {
   console.log("\n=================================================");
-  console.log("   HANU LMS MCP — Interactive Setup Assistant");
+  console.log("   HANU FIT LMS MCP — Interactive Setup Assistant");
   console.log("=================================================\n");
 
-  const cwd = process.cwd();
-  const envPath = path.resolve(cwd, ".env");
-  const distIndexPath = path.resolve(cwd, "dist/index.js");
+  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+  const packageRoot = path.resolve(scriptDir, "..");
+  const isLocalDev = path.resolve(process.cwd()) === packageRoot;
+
+  let envPath;
+  const distIndexPath = path.resolve(packageRoot, "dist/index.js");
   const nodePath = process.execPath;
 
-  // 1. Ensure build exists
-  if (!fs.existsSync(distIndexPath)) {
-    console.log("📦 Chưa tìm thấy bản build, đang tiến hành build TypeScript sang dist/...");
-    try {
-      execSync("npm run build", { stdio: "inherit" });
-      console.log("✅ Build hoàn tất.\n");
-    } catch {
-      console.error("❌ Lỗi khi build project. Vui lòng kiểm tra lại npm run build.");
-      process.exit(1);
+  if (isLocalDev) {
+    envPath = path.resolve(packageRoot, ".env");
+    // 1. Ensure build exists in local dev
+    if (!fs.existsSync(distIndexPath)) {
+      console.log("📦 Chưa tìm thấy bản build, đang tiến hành build TypeScript sang dist/...");
+      try {
+        execSync("npm run build", { cwd: packageRoot, stdio: "inherit" });
+        console.log("✅ Build hoàn tất.\n");
+      } catch {
+        console.error("❌ Lỗi khi build project. Vui lòng kiểm tra lại npm run build.");
+        process.exit(1);
+      }
     }
+  } else {
+    const configDir = path.join(os.homedir(), ".fit-lms-mcp");
+    try {
+      fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
+    } catch {
+      // Ignore directory creation errors if already exists
+    }
+    envPath = path.join(configDir, ".env");
   }
 
   // 2. Load existing .env if present
@@ -256,6 +270,19 @@ async function main() {
       if (parsed.TIMEOUT_MS) existingTimeout = parsed.TIMEOUT_MS;
     } catch {
       // Ignore read errors
+    }
+  } else if (!isLocalDev) {
+    // Check if local dev .env exists as fallback
+    const localEnv = path.resolve(process.cwd(), ".env");
+    if (fs.existsSync(localEnv)) {
+      try {
+        const parsed = parseEnvContent(fs.readFileSync(localEnv, "utf8"));
+        if (parsed.LMS_BASE_URL) existingBaseUrl = parsed.LMS_BASE_URL;
+        if (parsed.LMS_USERNAME) existingUsername = parsed.LMS_USERNAME;
+        if (parsed.TIMEOUT_MS) existingTimeout = parsed.TIMEOUT_MS;
+      } catch {
+        // Ignore read errors
+      }
     }
   }
 
@@ -314,17 +341,29 @@ async function main() {
   console.log(`\n🎉 Đã lưu cấu hình an toàn (permissions: 0600) vào: ${envPath}`);
 
   // 6. Define configurations for clients
-  const mcpServerConfig = {
-    command: nodePath,
-    args: [`--env-file=${envPath}`, distIndexPath],
-  };
+  const mcpServerConfig = isLocalDev
+    ? {
+        command: nodePath,
+        args: [`--env-file=${envPath}`, distIndexPath],
+      }
+    : {
+        command: "npx",
+        args: ["-y", "fit-lms-mcp"],
+      };
 
-  const openCodeConfig = {
-    type: "local",
-    command: [nodePath, `--env-file=${envPath}`, distIndexPath],
-    enabled: true,
-    timeout: 60000,
-  };
+  const openCodeConfig = isLocalDev
+    ? {
+        type: "local",
+        command: [nodePath, `--env-file=${envPath}`, distIndexPath],
+        enabled: true,
+        timeout: 60000,
+      }
+    : {
+        type: "local",
+        command: ["npx", "-y", "fit-lms-mcp"],
+        enabled: true,
+        timeout: 60000,
+      };
 
   // 7. Auto-detect and configure: Claude Code, OpenCode, Codex, Antigravity
   console.log("\n-------------------------------------------------");
@@ -407,25 +446,29 @@ async function main() {
   console.log("   Cấu hình MCP cho các AI Client (Copy thủ công)");
   console.log("=================================================\n");
 
+  const cliExample = isLocalDev
+    ? `claude mcp add fit-lms -- ${nodePath} --env-file=${envPath} ${distIndexPath}`
+    : `claude mcp add fit-lms -- npx -y fit-lms-mcp`;
+
   console.log("1. Claude Code:");
-  console.log(`   Lệnh CLI: claude mcp add hanu-lms -- ${nodePath} --env-file=${envPath} ${distIndexPath}`);
+  console.log(`   Lệnh CLI: ${cliExample}`);
   console.log("   Hoặc trong ~/.claude.json:");
-  console.log(JSON.stringify({ mcpServers: { "hanu-lms": mcpServerConfig } }, null, 2));
+  console.log(JSON.stringify({ mcpServers: { "fit-lms": mcpServerConfig } }, null, 2));
 
   console.log("\n2. OpenCode (~/.config/opencode/opencode.jsonc):");
-  console.log(JSON.stringify({ mcp: { "hanu-lms": openCodeConfig } }, null, 2));
+  console.log(JSON.stringify({ mcp: { "fit-lms": openCodeConfig } }, null, 2));
 
   console.log("\n3. Codex (~/.codex/config.json):");
-  console.log(JSON.stringify({ mcpServers: { "hanu-lms": mcpServerConfig } }, null, 2));
+  console.log(JSON.stringify({ mcpServers: { "fit-lms": mcpServerConfig } }, null, 2));
 
   console.log("\n4. Antigravity (~/.gemini/config/mcp_config.json):");
-  console.log(JSON.stringify({ mcpServers: { "hanu-lms": mcpServerConfig } }, null, 2));
+  console.log(JSON.stringify({ mcpServers: { "fit-lms": mcpServerConfig } }, null, 2));
 
   console.log("\n✨ Setup hoàn tất! Bạn có thể khởi động AI Client của mình để bắt đầu.");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
-  main().catch((err) => {
+  runSetup().catch((err) => {
     console.error("Lỗi:", err);
     process.exit(1);
   });
