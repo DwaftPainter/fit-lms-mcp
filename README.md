@@ -8,6 +8,8 @@ It exposes enrolled courses, course assignments, upcoming deadlines, and course 
 
 ## 🚀 Quick Start
 
+Requires **Node.js 22 or later**. Node.js 24 LTS is recommended. CI tests Node.js 22, 24, and 26 on Linux and macOS.
+
 Run the interactive setup assistant directly with `npx`:
 
 ```bash
