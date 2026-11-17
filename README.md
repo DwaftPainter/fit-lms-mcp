@@ -192,6 +192,7 @@ For OpenCode, use these values as a single command array. For Codex, use them as
 | :--- | :--- | :--- |
 | `get_my_courses` | Optional `classification`: `all` (default), `inprogress`, `future`, `past` | Enrolled courses with ID, course name, short name, start/end dates, progress percentage, and LMS URL |
 | `get_course_assignments` | Required positive integer `courseId` | List of visible assignments in the course with module ID, name, course ID, course name, and view link |
+| `get_assignment_detail` | Required positive integer `courseModuleId` | Detailed assignment information: prompt instructions, submission status (*Submitted for grading*, *Draft*, *No submission*), grading status, due date, time remaining, last modified, and cutoff date |
 | `get_upcoming_deadlines` | Optional `daysAhead` (1–365, default **7**), `includePast` (default false), `from`, `to`, `courseId` | Due events sorted in ascending order by due date, with verified course module ID and direct submission link |
 | `get_course_contents` | Required positive integer `courseId` | Course sections, module structure, activity titles, and resource metadata (excludes hidden/restricted items) |
 
@@ -204,6 +205,10 @@ For OpenCode, use these values as a single command array. For Codex, use them as
 - Upcoming deadlines for the next 7 days:
   ```json
   {}
+  ```
+- Get detailed submission status and instructions for an assignment:
+  ```json
+  { "courseModuleId": 42 }
   ```
 - Deadlines for the next 14 days for a specific course:
   ```json

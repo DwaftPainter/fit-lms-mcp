@@ -13,10 +13,26 @@ test("stdio MCP executes all four canonical tools and compatibility tools agains
   const server = createServer(async (request, response) => {
     requests++;
     assert.equal(request.headers.cookie, "MoodleSession=synthetic-session");
+    if (expired) {
+      if (request.method === "POST") {
+        response.setHeader("content-type", "application/json");
+        response.end(JSON.stringify([{ error: true, exception: { errorcode: "servicerequireslogin", message: "Private synthetic-session synthetic-key", stacktrace: "Private server trace" } }]));
+      } else {
+        response.statusCode = 302;
+        response.setHeader("location", `${baseUrl}/login/index.php`);
+        response.end();
+      }
+      return;
+    }
     const url = new URL(request.url, baseUrl);
     if (url.pathname.endsWith("/mod/assign/index.php")) {
       response.setHeader("content-type", "text/html");
       response.end(`<!doctype html><body id="page-mod-assign-index"><main id="region-main"><table class="generaltable"><tr><td><a href="${baseUrl}/mod/assign/view.php?id=42">Example assignment</a></td></tr></table></main></body>`);
+      return;
+    }
+    if (url.pathname.endsWith("/mod/assign/view.php")) {
+      response.setHeader("content-type", "text/html");
+      response.end(`<!doctype html><body id="page-mod-assign-view"><main id="region-main"><h2>Example assignment</h2><div class="generalbox" id="intro"><p>Instructions</p></div><table class="generaltable"><tr><th>Submission status</th><td>Submitted for grading</td></tr></table></main></body>`);
       return;
     }
     if (url.pathname.endsWith("/course/view.php")) {
@@ -64,7 +80,7 @@ test("stdio MCP executes all four canonical tools and compatibility tools agains
   });
   await client.connect(transport);
   const tools = await client.listTools();
-  assert.deepEqual(tools.tools.map(tool => tool.name).sort(), ["assignments", "deadlines", "get_course_assignments", "get_course_contents", "get_my_courses", "get_upcoming_deadlines"]);
+  assert.deepEqual(tools.tools.map(tool => tool.name).sort(), ["assignments", "deadlines", "get_assignment_detail", "get_course_assignments", "get_course_contents", "get_my_courses", "get_upcoming_deadlines"]);
   assert.equal(tools.tools.find(tool => tool.name === "deadlines").inputSchema.properties.from.type, "string");
   for (const [name, args] of [["get_my_courses", {}], ["assignments", { courseId: 7 }], ["deadlines", { from: "2020-01-01T00:00:00Z" }]]) {
     const result = await client.callTool({ name, arguments: args });
@@ -73,13 +89,20 @@ test("stdio MCP executes all four canonical tools and compatibility tools agains
     assert.equal(data.length, 1);
     assert.equal(name === "get_my_courses" ? data[0].id : data[0].courseId, 7);
   }
-  for (const name of ["get_course_assignments", "get_upcoming_deadlines", "get_course_contents"]) {
-    const result = await client.callTool({ name, arguments: name === "get_upcoming_deadlines" ? {} : { courseId: 7 } });
+  for (const name of ["get_course_assignments", "get_upcoming_deadlines", "get_course_contents", "get_assignment_detail"]) {
+    const result = await client.callTool({
+      name,
+      arguments: name === "get_upcoming_deadlines" ? {} : name === "get_assignment_detail" ? { courseModuleId: 42 } : { courseId: 7 }
+    });
     assert.notEqual(result.isError, true);
     const data = JSON.parse(result.content[0].text);
     if (name === "get_course_contents") {
       assert.equal(data.courseId, 7);
       assert.equal(data.sections[0].modules[0].id, 42);
+    } else if (name === "get_assignment_detail") {
+      assert.equal(data.id, 42);
+      assert.equal(data.name, "Example assignment");
+      assert.equal(data.submissionStatus, "Submitted for grading");
     } else {
       assert.equal(data.length, 1);
       assert.equal(name === "get_course_assignments" ? data[0].id : data[0].courseModuleId, 42);
@@ -100,8 +123,11 @@ test("stdio MCP executes all four canonical tools and compatibility tools agains
     assert.equal(result.isError, true, "a selected course absent from enrollment must fail explicitly");
   }
   expired = true;
-  for (const name of ["get_my_courses", "assignments", "deadlines", "get_upcoming_deadlines", "get_course_assignments", "get_course_contents"]) {
-    const result = await client.callTool({ name, arguments: name === "get_course_assignments" || name === "get_course_contents" ? { courseId: 7 } : {} });
+  for (const name of ["get_my_courses", "assignments", "deadlines", "get_upcoming_deadlines", "get_course_assignments", "get_course_contents", "get_assignment_detail"]) {
+    const result = await client.callTool({
+      name,
+      arguments: name === "get_course_assignments" || name === "get_course_contents" ? { courseId: 7 } : name === "get_assignment_detail" ? { courseModuleId: 42 } : {}
+    });
     assert.equal(result.isError, true);
     assert.ok(!JSON.stringify(result).includes("synthetic-session"));
     assert.ok(!JSON.stringify(result).includes("synthetic-key"));

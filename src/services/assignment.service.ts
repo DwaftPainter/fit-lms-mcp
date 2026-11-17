@@ -1,4 +1,5 @@
 import { parseAssignmentIndex, AssignmentLink } from "../moodle/api/assignments.js";
+import { parseAssignmentDetail, AssignmentDetail } from "../moodle/api/assignment-detail.js";
 import { MoodleClient } from "../moodle/client.js";
 import { MoodleError } from "../moodle/errors.js";
 import { CourseService } from "./course.service.js";
@@ -18,6 +19,14 @@ export class AssignmentService {
       courseName: assignment.courseName,
       url: assignment.url,
     }));
+  }
+
+  async getAssignmentDetail(courseModuleId: number): Promise<AssignmentDetail> {
+    if (!Number.isSafeInteger(courseModuleId) || courseModuleId <= 0) {
+      throw new MoodleError("Invalid course module ID", "INVALID_REQUEST");
+    }
+    const html = await this.client.getAssignmentPage(courseModuleId);
+    return parseAssignmentDetail(html, this.baseUrl, courseModuleId);
   }
 
   async getAssignments(input: AssignmentInput = {}): Promise<AssignmentSummary[]> {
