@@ -1,4 +1,4 @@
-# FIT LMS MCP
+# HANU FIT LMS MCP
 
 A Model Context Protocol (MCP) server providing authorized, read-only access to a student's HANU Faculty of Information Technology (FIT) Moodle LMS (`https://lms.fit.hanu.vn`).
 
@@ -11,16 +11,22 @@ It exposes enrolled courses, course assignments, upcoming deadlines, and course 
 Run the interactive setup assistant directly with `npx`:
 
 ```bash
-npx fit-lms-setup
+npx fit-lms-mcp setup
 ```
 
-*(Or if you already have the local workspace, simply run `npm install && npm run setup`)*
+Or, from a local workspace:
+
+```bash
+npm install
+npm run setup
+```
 
 The interactive setup assistant will:
+
 1. Prompt for your LMS student ID and password (safely masked).
 2. Test the connection against HANU LMS immediately.
-3. Save your `.env` configuration file securely with `0600` permissions.
-4. Automatically register the MCP server into **Claude Code**, **OpenCode**, **Codex**, or **Antigravity**.
+3. Save your configuration securely with `0600` permissions to `~/.fit-lms-mcp/.env` when run via `npx`, or the workspace `.env` when run from the package root.
+4. Offer to register the MCP server with detected AI clients (**Claude Code**, **OpenCode**, **Codex**, or **Antigravity**). For Codex, use the manual configuration below.
 
 After running setup, you can use the MCP server directly in your AI client with `npx -y fit-lms-mcp`.
 
@@ -28,12 +34,14 @@ After running setup, you can use the MCP server directly in your AI client with 
 
 ## ⚙️ Manual Configuration
 
-If you prefer to configure manually, copy the template and edit [.env](file:///.env):
+For a local workspace, copy the template, edit `.env`, and build:
 
 ```bash
 cp .env.example .env
 npm run build
 ```
+
+For use via `npx`, create `~/.fit-lms-mcp/.env` with the settings below and restrict its permissions to `0600`.
 
 | Variable | Description |
 | :--- | :--- |
@@ -44,44 +52,47 @@ npm run build
 | `LMS_MOODLE_SESSION` | MoodleSession cookie value (Option 2 - Manual legacy session) |
 | `LMS_MOODLE_SESSKEY` | sesskey query parameter from the same session (Option 2 - Manual legacy session) |
 
-*Configuration failures name the invalid setting without printing sensitive credential values. Saved `.env` files are ignored by Git.*
+*Configuration failures name the invalid setting without printing sensitive credential values. Workspace `.env` files are ignored by Git.*
+
+When credentials are not already supplied through the environment, the server looks for `.env` in its working directory, then `~/.fit-lms-mcp/.env`. The first readable file is used. You can also provide settings through your AI client's environment configuration.
 
 ---
 
 ## 🤖 AI Client Integration
 
+The following examples use the credentials saved by the `npx` setup flow.
+
 ### 1. Claude Code
+
 Register via CLI:
+
 ```bash
-claude mcp add fit-lms -- node --env-file=/absolute/path/to/fit-lms-mcp/.env /absolute/path/to/fit-lms-mcp/dist/index.js
+claude mcp add fit-lms -- npx -y fit-lms-mcp
 ```
+
 Or add to `~/.claude.json`:
+
 ```json
 {
   "mcpServers": {
     "fit-lms": {
-      "command": "node",
-      "args": [
-        "--env-file=/absolute/path/to/fit-lms-mcp/.env",
-        "/absolute/path/to/fit-lms-mcp/dist/index.js"
-      ]
+      "command": "npx",
+      "args": ["-y", "fit-lms-mcp"]
     }
   }
 }
 ```
 
 ### 2. OpenCode
+
 Add to `~/.config/opencode/opencode.jsonc` (or project `opencode.json`):
+
 ```json
 {
   "mcp": {
     "fit-lms": {
       "type": "local",
-      "command": [
-        "node",
-        "--env-file=/absolute/path/to/fit-lms-mcp/.env",
-        "/absolute/path/to/fit-lms-mcp/dist/index.js"
-      ],
+      "command": ["npx", "-y", "fit-lms-mcp"],
       "enabled": true,
       "timeout": 60000
     }
@@ -89,56 +100,87 @@ Add to `~/.config/opencode/opencode.jsonc` (or project `opencode.json`):
 }
 ```
 
-### 3. Antigravity
+### 3. Codex
+
+Register via CLI:
+
+```bash
+codex mcp add fit-lms -- npx -y fit-lms-mcp
+```
+
+Or add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.fit-lms]
+command = "npx"
+args = ["-y", "fit-lms-mcp"]
+```
+
+See the [Codex MCP documentation](https://developers.openai.com/codex/mcp/). The setup assistant currently writes a JSON configuration for Codex; use the CLI command or TOML configuration above instead.
+
+### 4. Antigravity
+
 Add to `~/.gemini/config/mcp_config.json`:
+
 ```json
 {
   "mcpServers": {
     "fit-lms": {
-      "command": "node",
-      "args": [
-        "--env-file=/absolute/path/to/fit-lms-mcp/.env",
-        "/absolute/path/to/fit-lms-mcp/dist/index.js"
-      ]
+      "command": "npx",
+      "args": ["-y", "fit-lms-mcp"]
     }
   }
 }
 ```
 
-### 4. Cursor
+### 5. Cursor
+
 Add to `~/.cursor/mcp.json` or `.cursor/mcp.json` in your project:
+
 ```json
 {
   "mcpServers": {
     "fit-lms": {
-      "command": "node",
-      "args": [
-        "--env-file=/absolute/path/to/fit-lms-mcp/.env",
-        "/absolute/path/to/fit-lms-mcp/dist/index.js"
-      ]
+      "command": "npx",
+      "args": ["-y", "fit-lms-mcp"]
     }
   }
 }
 ```
 
-### 5. Claude Desktop
+### 6. Claude Desktop
+
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
 ```json
 {
   "mcpServers": {
     "fit-lms": {
-      "command": "node",
-      "args": [
-        "--env-file=/absolute/path/to/fit-lms-mcp/.env",
-        "/absolute/path/to/fit-lms-mcp/dist/index.js"
-      ]
+      "command": "npx",
+      "args": ["-y", "fit-lms-mcp"]
     }
   }
 }
 ```
+
+### Local Workspace Configuration
+
+To run a local build with an explicit credentials file, replace the `npx` command and arguments with:
+
+```json
+{
+  "command": "node",
+  "args": [
+    "--env-file=/absolute/path/to/fit-lms-mcp/.env",
+    "/absolute/path/to/fit-lms-mcp/dist/index.js"
+  ]
+}
+```
+
+For OpenCode, use these values as a single command array. For Codex, use them as the `command` and `args` values in the TOML table above.
 
 > [!TIP]
-> On macOS with NVM, if your GUI application does not inherit terminal `$PATH`, replace `"node"` with your full Node executable path (e.g. `which node`).
+> On macOS with NVM, if your GUI application does not inherit terminal `$PATH`, replace `"npx"` or `"node"` with its full executable path (for example, the output of `which npx` or `which node`).
 
 ---
 
@@ -171,6 +213,16 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   ```
 
 *Compatibility tools `assignments` and `deadlines` remain available for backwards compatibility.*
+
+---
+
+### Example Prompts
+
+Once connected to your AI assistant, you can ask:
+
+- "List my enrolled courses on HANU FIT LMS."
+- "Show all assignments and upcoming deadlines for the next 7 days."
+- "What topics and materials are in course 660?"
 
 ---
 

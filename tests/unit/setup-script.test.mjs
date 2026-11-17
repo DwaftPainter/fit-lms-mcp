@@ -10,6 +10,7 @@ import {
   stripJsonComments,
   updateJsonConfigFile,
   saveEnvFile,
+  runSetup,
 } from "../../scripts/setup.mjs";
 
 test("[P1] serializeEnvValue properly quotes values containing hash, quotes and spaces", () => {
@@ -120,4 +121,8 @@ test("[P2] saveEnvFile creates .env with 0600 mode and secures existing files", 
   assert.equal(stat2.mode & 0o777, 0o600);
 
   fs.unlinkSync(tmpEnv);
+});
+
+test("runSetup is exported and callable", () => {
+  assert.equal(typeof runSetup, "function");
 });
