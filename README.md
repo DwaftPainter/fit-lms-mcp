@@ -5,6 +5,8 @@ It exposes enrolled courses, course assignments, upcoming deadlines, and course 
 
 ## Quick Setup
 
+Requires **Node.js 22 or later**. Node.js 24 LTS is recommended. CI tests Node.js 22, 24, and 26 on Linux and macOS.
+
 Run the interactive setup assistant to configure your credentials and automatically register the MCP server into your AI tools (**Claude Code**, **OpenCode**, **Codex**, or **Antigravity**):
 
 ```bash
