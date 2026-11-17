@@ -8,32 +8,21 @@ It exposes enrolled courses, course assignments, upcoming deadlines, and course 
 
 ## 🚀 Quick Start
 
-### Option 1: Use directly with `npx` (No Git clone needed)
-
-You can run the interactive setup assistant anywhere:
+Run the interactive setup assistant directly with `npx`:
 
 ```bash
 npx fit-lms-setup
 ```
 
-Then register the server in your AI client using `npx -y fit-lms-mcp`.
-
----
-
-### Option 2: Clone and run locally
-
-```bash
-git clone https://github.com/DwaftPainter/fit-lms-mcp.git
-cd fit-lms-mcp
-npm install
-npm run setup
-```
+*(Or if you already have the local workspace, simply run `npm install && npm run setup`)*
 
 The interactive setup assistant will:
 1. Prompt for your LMS student ID and password (safely masked).
 2. Test the connection against HANU LMS immediately.
 3. Save your `.env` configuration file securely with `0600` permissions.
 4. Automatically register the MCP server into **Claude Code**, **OpenCode**, **Codex**, or **Antigravity**.
+
+After running setup, you can use the MCP server directly in your AI client with `npx -y fit-lms-mcp`.
 
 ---
 
