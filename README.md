@@ -271,6 +271,22 @@ LMS_LIVE_SMOKE=1 node --env-file=.env scripts/smoke-live.mjs
 - `src/tools/` & `src/mcp/tools/`: MCP tool definitions and schemas.
 - `scripts/setup.mjs`: Interactive setup assistant.
 
+## Publishing Releases
+
+Version 2.0.0 requires Node.js 22 or later; Node.js 18 and 20 are no longer supported.
+
+The `publish.yml` workflow publishes on a `v*` Git tag push or a manual workflow run. Creating a GitHub Release does not trigger a second publish. Update `package.json` and `package-lock.json` before tagging a release, and make the tag match the package version (for example, `v2.0.0`). Published npm versions cannot be reused, even after unpublishing.
+
+Publishing uses npm trusted publishing (OIDC) from a GitHub-hosted runner with Node.js 24 and npm 11. No `NPM_TOKEN` secret is required. Configure the package's Trusted Publisher on npm with:
+
+- **Organization or user:** `DwaftPainter`
+- **Repository:** `fit-lms-mcp` (without `@`)
+- **Workflow filename:** `publish.yml`
+- **Environment name:** leave empty; this workflow does not select an environment
+- **Allowed actions:** enable `Allow npm publish`
+
+Required fields in an existing trusted publisher cannot be edited; recreate the connection if they are incorrect. See the [npm trusted publishing documentation](https://docs.npmjs.com/trusted-publishers/).
+
 ## 📄 License
 
 MIT © [DwaftPainter](https://github.com/DwaftPainter)
