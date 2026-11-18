@@ -11,6 +11,14 @@ export interface MoodleClientOptions {
 
 export interface MoodleCall<TArgs = unknown> { method: string; args: TArgs; }
 
+export const ANNOUNCEMENTS_PAGE_SIZE = 10;
+
+export type MaterialType = "resource" | "folder" | "page" | "url";
+
+export function isMaterialType(type: string): type is MaterialType {
+  return type === "resource" || type === "folder" || type === "page" || type === "url";
+}
+
 const responseError = () => new MoodleError("Moodle returned an invalid or oversized response", "MOODLE_RESPONSE_ERROR");
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
@@ -76,12 +84,23 @@ export class MoodleClient {
     return this.getPage("/mod/assign/view.php", courseModuleId, "course module ID");
   }
 
-  private async getPage(path: string, id: number, label = "course ID"): Promise<string> {
+  getForumPage(courseModuleId: number, page: number): Promise<string> {
+    if (!Number.isSafeInteger(page) || page < 0) throw new MoodleError("Invalid forum page", "INVALID_REQUEST");
+    return this.getPage("/mod/forum/view.php", courseModuleId, "course module ID", { page: String(page), s: String(ANNOUNCEMENTS_PAGE_SIZE) });
+  }
+
+  getMaterialPage(type: MaterialType, courseModuleId: number): Promise<string> {
+    if (!isMaterialType(type)) throw new MoodleError("Unsupported Moodle material type", "INVALID_REQUEST");
+    const options = type === "resource" || type === "url" ? { forceview: "1" } : undefined;
+    return this.getPage(`/mod/${type}/view.php`, courseModuleId, "course module ID", options);
+  }
+
+  private async getPage(path: string, id: number, label = "course ID", options?: Record<string, string>): Promise<string> {
     if (!Number.isSafeInteger(id) || id <= 0) throw new MoodleError(`Invalid ${label}`, "INVALID_REQUEST");
     return this.withAuthRetry(async (credentials) => {
-      const { response, body } = await this.send(`${path}?id=${id}`, { headers: { Accept: "text/html" } }, credentials);
+      const query = new URLSearchParams({ id: String(id), ...options });
+      const { response, body } = await this.send(`${path}?${query}`, { headers: { Accept: "text/html" } }, credentials, true);
       if (!response.ok) throw this.httpError(response.status);
-      if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) throw responseError();
       if (/id=["']page-login-index["']/.test(body)) throw this.loginError();
       return body;
     });
@@ -120,7 +139,7 @@ export class MoodleClient {
     return new MoodleError(`Moodle HTTP request failed (${status})`, "MOODLE_HTTP_ERROR");
   }
 
-  private async send(path: string, init: RequestInit, credentials: MoodleSessionCredentials): Promise<{ response: Response; body: string }> {
+  private async send(path: string, init: RequestInit, credentials: MoodleSessionCredentials, expectedHtml = false): Promise<{ response: Response; body: string }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
@@ -130,6 +149,11 @@ export class MoodleClient {
         redirect: "manual", signal: controller.signal,
       });
       if ([301, 302, 303, 307, 308, 401].includes(response.status)) throw this.loginError();
+      if (expectedHtml && response.ok && (!response.headers.get("content-type")?.toLowerCase().includes("text/html") ||
+        /^attachment\b/i.test(response.headers.get("content-disposition") ?? ""))) {
+        controller.abort();
+        throw responseError();
+      }
       if (Number(response.headers.get("content-length")) > MAX_RESPONSE_BYTES) {
         controller.abort();
         throw responseError();

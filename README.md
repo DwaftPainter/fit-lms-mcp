@@ -195,6 +195,10 @@ For OpenCode, use these values as a single command array. For Codex, use them as
 | `get_assignment_detail` | Required positive integer `courseModuleId` | Detailed assignment information: prompt instructions, submission status (*Submitted for grading*, *Draft*, *No submission*), grading status, due date, time remaining, last modified, and cutoff date |
 | `get_upcoming_deadlines` | Optional `daysAhead` (1–365, default **7**), `includePast` (default false), `from`, `to`, `courseId` | Due events sorted in ascending order by due date, with verified course module ID and direct submission link |
 | `get_course_contents` | Required positive integer `courseId` | Course sections, module structure, activity titles, and resource metadata (excludes hidden/restricted items) |
+| `get_course_announcements` | Required positive integer `courseId`, optional zero-based `page` (default **0**) | Up to 10 visible announcements in Moodle forum order, with title, message text, discussion link, and author and timestamp when available |
+| `get_material_detail` | Required positive integers `courseId` and `courseModuleId` from `get_course_contents` | Name, type, Moodle link, and available details for File, Folder, Page, and URL modules, including file names and links, page text, or the destination URL |
+
+Moodle may log the activity view or apply its view-based completion settings when the server reads an announcement forum or material page. Material lookups read metadata and page text without downloading files or opening external destinations.
 
 ### Tool Argument Examples
 
@@ -230,6 +234,8 @@ Once connected to your AI assistant, you can ask:
 - "List my enrolled courses on HANU FIT LMS."
 - "Show all assignments and upcoming deadlines for the next 7 days."
 - "What topics and materials are in course 660?"
+- "Show the announcements for course 660."
+- "Open the details of the exam guide listed in course 660."
 
 ---
 
