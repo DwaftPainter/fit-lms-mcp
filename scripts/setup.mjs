@@ -5,7 +5,7 @@ import path from "node:path";
 import os from "node:os";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
-import { execSync } from "node:child_process";
+import childProcess, { execSync } from "node:child_process";
 
 export function serializeEnvValue(val) {
   const str = String(val ?? "");
@@ -144,6 +144,20 @@ export function updateJsonConfigFile(configPath, serverConfig, key = "mcpServers
     return true;
   } catch (writeErr) {
     console.error(`\n❌ Lỗi khi ghi file ${configPath}: ${writeErr.message}`);
+    return false;
+  }
+}
+
+function registerCodexMcp({ command, args }) {
+  const options = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] };
+  try {
+    const servers = JSON.parse(childProcess.execFileSync("codex", ["mcp", "list", "--json"], options));
+    const hasFitLms = servers.some(server => server.name === "fit-lms");
+    const hasLegacyLms = servers.some(server => server.name === "hanu-lms");
+    const name = !hasFitLms && hasLegacyLms ? "hanu-lms" : "fit-lms";
+    childProcess.execFileSync("codex", ["mcp", "add", name, "--", command, ...args], options);
+    return true;
+  } catch {
     return false;
   }
 }
@@ -366,22 +380,17 @@ export async function runSetup() {
       }
     : {
         command: "npx",
-        args: ["-y", "fit-lms-mcp"],
+        args: ["-y", "fit-lms-mcp@latest"],
       };
 
-  const openCodeConfig = isLocalDev
-    ? {
-        type: "local",
-        command: [nodePath, `--env-file=${envPath}`, distIndexPath],
-        enabled: true,
-        timeout: 60000,
-      }
-    : {
-        type: "local",
-        command: ["npx", "-y", "fit-lms-mcp"],
-        enabled: true,
-        timeout: 60000,
-      };
+  const mcpCommand = [mcpServerConfig.command, ...mcpServerConfig.args];
+  const openCodeConfig = {
+    type: "local",
+    command: mcpCommand,
+    enabled: true,
+    timeout: 60000,
+  };
+  const codexConfigPath = path.join(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"), "config.toml");
 
   // 7. Auto-detect and configure: Claude Code, OpenCode, Codex, Antigravity
   console.log("\n-------------------------------------------------");
@@ -413,18 +422,9 @@ export async function runSetup() {
     },
     {
       name: "Codex",
-      detect: () => {
-        const dir = path.join(os.homedir(), ".codex");
-        const altDir = path.join(os.homedir(), ".config/codex");
-        return fs.existsSync(dir) || fs.existsSync(altDir);
-      },
-      getConfigPath: () => {
-        const dir = path.join(os.homedir(), ".codex");
-        if (fs.existsSync(path.join(dir, "mcp.json"))) return path.join(dir, "mcp.json");
-        return path.join(dir, "config.json");
-      },
-      key: "mcpServers",
-      getConfig: () => mcpServerConfig,
+      detect: () => fs.existsSync(path.dirname(codexConfigPath)) || fs.existsSync(path.join(os.homedir(), ".config/codex")),
+      getConfigPath: () => codexConfigPath,
+      register: () => registerCodexMcp(mcpServerConfig),
     },
     {
       name: "Antigravity",
@@ -445,7 +445,9 @@ export async function runSetup() {
       const targetPath = client.getConfigPath();
       const answer = await ask(`Phát hiện ${client.name} (${targetPath}).\n  👉 Tự động đăng ký MCP vào ${client.name}? (Y/n): `);
       if (!answer || answer.toLowerCase() === "y") {
-        const ok = updateJsonConfigFile(targetPath, client.getConfig(), client.key);
+        const ok = client.register
+          ? client.register()
+          : updateJsonConfigFile(targetPath, client.getConfig(), client.key);
         if (ok) {
           console.log(`  ✅ Đã đăng ký thành công vào: ${targetPath}\n`);
         } else {
@@ -464,9 +466,7 @@ export async function runSetup() {
   console.log("   Cấu hình MCP cho các AI Client (Copy thủ công)");
   console.log("=================================================\n");
 
-  const cliExample = isLocalDev
-    ? `claude mcp add fit-lms -- ${nodePath} --env-file=${envPath} ${distIndexPath}`
-    : `claude mcp add fit-lms -- npx -y fit-lms-mcp`;
+  const cliExample = `claude mcp add fit-lms -- ${mcpCommand.join(" ")}`;
 
   console.log("1. Claude Code:");
   console.log(`   Lệnh CLI: ${cliExample}`);
@@ -476,8 +476,10 @@ export async function runSetup() {
   console.log("\n2. OpenCode (~/.config/opencode/opencode.jsonc):");
   console.log(JSON.stringify({ mcp: { "fit-lms": openCodeConfig } }, null, 2));
 
-  console.log("\n3. Codex (~/.codex/config.json):");
-  console.log(JSON.stringify({ mcpServers: { "fit-lms": mcpServerConfig } }, null, 2));
+  console.log(`\n3. Codex (${codexConfigPath}):`);
+  console.log("[mcp_servers.fit-lms]");
+  console.log(`command = ${JSON.stringify(mcpServerConfig.command)}`);
+  console.log(`args = ${JSON.stringify(mcpServerConfig.args)}`);
 
   console.log("\n4. Antigravity (~/.gemini/config/mcp_config.json):");
   console.log(JSON.stringify({ mcpServers: { "fit-lms": mcpServerConfig } }, null, 2));

@@ -13,7 +13,7 @@ Requires **Node.js 22 or later**. Node.js 24 LTS is recommended. CI tests Node.j
 Run the interactive setup assistant directly with `npx`:
 
 ```bash
-npx fit-lms-mcp setup
+npx -y fit-lms-mcp@latest setup
 ```
 
 Or, from a local workspace:
@@ -28,9 +28,15 @@ The interactive setup assistant will:
 1. Prompt for your LMS student ID and password (safely masked).
 2. Test the connection against HANU LMS immediately.
 3. Save your configuration securely with `0600` permissions to `~/.fit-lms-mcp/.env` when run via `npx`, or the workspace `.env` when run from the package root.
-4. Offer to register the MCP server with detected AI clients (**Claude Code**, **OpenCode**, **Codex**, or **Antigravity**). For Codex, use the manual configuration below.
+4. Offer to register the MCP server with detected AI clients (**Claude Code**, **OpenCode**, **Codex**, or **Antigravity**). Automatic registration for Codex requires the `codex` CLI on your PATH.
 
-After running setup, you can use the MCP server directly in your AI client with `npx -y fit-lms-mcp`.
+After running setup, restart your AI client. The npm configuration uses `npx -y fit-lms-mcp@latest` so npm resolves the latest stable release whenever the client starts the MCP server.
+
+### Updating an existing installation
+
+If your client already uses `fit-lms-mcp@latest`, restart it to pick up a new release. For an older `npx` entry, change the package argument to `fit-lms-mcp@latest` and restart the client. You can keep using the credentials saved by setup.
+
+If you installed the package globally, run `npm install -g fit-lms-mcp@latest` and restart your client.
 
 ---
 
@@ -70,7 +76,7 @@ The following examples use the credentials saved by the `npx` setup flow.
 Register via CLI:
 
 ```bash
-claude mcp add fit-lms -- npx -y fit-lms-mcp
+claude mcp add fit-lms -- npx -y fit-lms-mcp@latest
 ```
 
 Or add to `~/.claude.json`:
@@ -80,7 +86,7 @@ Or add to `~/.claude.json`:
   "mcpServers": {
     "fit-lms": {
       "command": "npx",
-      "args": ["-y", "fit-lms-mcp"]
+      "args": ["-y", "fit-lms-mcp@latest"]
     }
   }
 }
@@ -95,7 +101,7 @@ Add to `~/.config/opencode/opencode.jsonc` (or project `opencode.json`):
   "mcp": {
     "fit-lms": {
       "type": "local",
-      "command": ["npx", "-y", "fit-lms-mcp"],
+      "command": ["npx", "-y", "fit-lms-mcp@latest"],
       "enabled": true,
       "timeout": 60000
     }
@@ -108,7 +114,7 @@ Add to `~/.config/opencode/opencode.jsonc` (or project `opencode.json`):
 Register via CLI:
 
 ```bash
-codex mcp add fit-lms -- npx -y fit-lms-mcp
+codex mcp add fit-lms -- npx -y fit-lms-mcp@latest
 ```
 
 Or add to `~/.codex/config.toml`:
@@ -116,10 +122,10 @@ Or add to `~/.codex/config.toml`:
 ```toml
 [mcp_servers.fit-lms]
 command = "npx"
-args = ["-y", "fit-lms-mcp"]
+args = ["-y", "fit-lms-mcp@latest"]
 ```
 
-See the [Codex MCP documentation](https://developers.openai.com/codex/mcp/). The setup assistant currently writes a JSON configuration for Codex; use the CLI command or TOML configuration above instead.
+See the [Codex MCP documentation](https://developers.openai.com/codex/mcp/).
 
 ### 4. Antigravity
 
@@ -130,7 +136,7 @@ Add to `~/.gemini/config/mcp_config.json`:
   "mcpServers": {
     "fit-lms": {
       "command": "npx",
-      "args": ["-y", "fit-lms-mcp"]
+      "args": ["-y", "fit-lms-mcp@latest"]
     }
   }
 }
@@ -145,7 +151,7 @@ Add to `~/.cursor/mcp.json` or `.cursor/mcp.json` in your project:
   "mcpServers": {
     "fit-lms": {
       "command": "npx",
-      "args": ["-y", "fit-lms-mcp"]
+      "args": ["-y", "fit-lms-mcp@latest"]
     }
   }
 }
@@ -160,7 +166,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "fit-lms": {
       "command": "npx",
-      "args": ["-y", "fit-lms-mcp"]
+      "args": ["-y", "fit-lms-mcp@latest"]
     }
   }
 }

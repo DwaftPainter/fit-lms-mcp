@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import readline from "node:readline";
 import test from "node:test";
-import { execFileSync } from "node:child_process";
+import childProcess, { execFileSync } from "node:child_process";
 import {
   serializeEnvValue,
   parseEnvContent,
@@ -190,4 +191,43 @@ test("[P2] saveEnvFile creates .env with 0600 mode and secures existing files", 
 
 test("runSetup is exported and callable", () => {
   assert.equal(typeof runSetup, "function");
+});
+
+test("runSetup registers the latest npm version in detected clients", async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fit-setup-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  for (const clientDir of [".claude", ".config/opencode", ".codex", ".gemini"]) {
+    fs.mkdirSync(path.join(dir, clientDir), { recursive: true });
+  }
+  const claudePath = path.join(dir, ".claude.json");
+  fs.writeFileSync(claudePath, JSON.stringify({
+    mcpServers: { "hanu-lms": { command: "npx", args: ["-y", "fit-lms-mcp@2.0.1"] } },
+  }));
+
+  t.mock.method(os, "homedir", () => dir);
+  t.mock.method(process, "cwd", () => dir);
+  t.mock.getter(process, "stdin", () => ({ isTTY: false }));
+  t.mock.method(console, "log", () => {});
+  const answers = ["", "student", "test-password", "", "n", "", "", "", ""];
+  t.mock.method(readline, "createInterface", () => ({
+    question(_prompt, respond) { respond(answers.shift()); },
+    close() {},
+  }));
+  const codex = t.mock.method(childProcess, "execFileSync", (_command, args) =>
+    args[1] === "list" ? '[{"name":"hanu-lms"}]' : ""
+  );
+
+  await runSetup();
+
+  const latestArgs = ["-y", "fit-lms-mcp@latest"];
+  const readConfig = (file) => JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
+  assert.deepEqual(readConfig(".claude.json").mcpServers, {
+    "hanu-lms": { command: "npx", args: latestArgs },
+  });
+  assert.deepEqual(readConfig(".config/opencode/opencode.jsonc").mcp["fit-lms"].command, ["npx", ...latestArgs]);
+  assert.deepEqual(readConfig(".gemini/config/mcp_config.json").mcpServers["fit-lms"].args, latestArgs);
+  assert.deepEqual(codex.mock.calls.map(call => call.arguments.slice(0, 2)), [
+    ["codex", ["mcp", "list", "--json"]],
+    ["codex", ["mcp", "add", "hanu-lms", "--", "npx", ...latestArgs]],
+  ]);
 });
