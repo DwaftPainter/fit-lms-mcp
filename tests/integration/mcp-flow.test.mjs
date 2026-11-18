@@ -130,6 +130,22 @@ test("stdio MCP executes canonical and compatibility tools against a local Moodl
       assert.equal(name === "get_course_assignments" ? data[0].id : data[0].courseModuleId, 42);
     }
   }
+  for (const [name, args, coldRequests] of [["get_my_courses", {}, 1], ["get_course_contents", { courseId: 7 }, 2]]) {
+    const requestsBeforeHit = requests;
+    const cached = await client.callTool({ name, arguments: args });
+    assert.notEqual(cached.isError, true);
+    assert.equal(requests, requestsBeforeHit, `${name} should serve a warm read without contacting Moodle`);
+    const refreshed = await client.callTool({ name, arguments: { ...args, bypassCache: true } });
+    assert.notEqual(refreshed.isError, true);
+    assert.deepEqual(refreshed.content, cached.content);
+    assert.equal(requests, requestsBeforeHit + coldRequests, `${name} should contact Moodle on bypass`);
+    await client.callTool({ name, arguments: args });
+    assert.equal(requests, requestsBeforeHit + coldRequests, `${name} should cache the refreshed value`);
+  }
+  const beforeFilteredCourses = requests;
+  await client.callTool({ name: "get_my_courses", arguments: { classification: "past" } });
+  assert.equal(requests, beforeFilteredCourses + 1, "another classification should use its own cache entry");
+
   const announcements = await client.callTool({ name: "get_course_announcements", arguments: { courseId: 7 } });
   assert.notEqual(announcements.isError, true);
   assert.deepEqual(JSON.parse(announcements.content[0].text), [{
@@ -151,15 +167,19 @@ test("stdio MCP executes canonical and compatibility tools against a local Moodl
   assert.equal(invalidPage.isError, true);
   const invalidModule = await client.callTool({ name: "get_material_detail", arguments: { courseId: 7, courseModuleId: "44" } });
   assert.equal(invalidModule.isError, true);
+  const invalidBypass = await client.callTool({ name: "get_course_contents", arguments: { courseId: 7, bypassCache: "true" } });
+  assert.equal(invalidBypass.isError, true);
   assert.equal(requests, before);
   empty = true;
   for (const name of ["get_my_courses", "assignments", "deadlines", "get_upcoming_deadlines"]) {
-    const result = await client.callTool({ name, arguments: {} });
+    const result = await client.callTool({ name, arguments: name === "get_my_courses" ? { bypassCache: true } : {} });
     assert.notEqual(result.isError, true);
     assert.deepEqual(JSON.parse(result.content[0].text), []);
   }
   for (const name of ["get_course_assignments", "get_course_contents", "get_course_announcements", "get_material_detail"]) {
-    const result = await client.callTool({ name, arguments: name === "get_material_detail" ? { courseId: 7, courseModuleId: 44 } : { courseId: 7 } });
+    const result = await client.callTool({ name, arguments: {
+      get_material_detail: { courseId: 7, courseModuleId: 44 }, get_course_contents: { courseId: 7, bypassCache: true },
+    }[name] ?? { courseId: 7 } });
     assert.equal(result.isError, true, "a selected course absent from enrollment must fail explicitly");
   }
   expired = true;
@@ -167,8 +187,9 @@ test("stdio MCP executes canonical and compatibility tools against a local Moodl
     const result = await client.callTool({
       name,
       arguments: {
-        get_course_assignments: { courseId: 7 }, get_course_contents: { courseId: 7 }, get_assignment_detail: { courseModuleId: 42 },
+        get_course_assignments: { courseId: 7 }, get_course_contents: { courseId: 7, bypassCache: true }, get_assignment_detail: { courseModuleId: 42 },
         get_course_announcements: { courseId: 7 }, get_material_detail: { courseId: 7, courseModuleId: 44 },
+        get_my_courses: { bypassCache: true },
       }[name] ?? {},
     });
     assert.equal(result.isError, true);

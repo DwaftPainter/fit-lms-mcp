@@ -1,8 +1,11 @@
 import { isSafeCookieValue, isSafeSesskey } from "../moodle/auth/credentials.js";
 
+export const DEFAULT_COURSE_CACHE_TTL_MS = 15 * 60 * 1000;
+
 export interface LmsConfig {
   baseUrl: string;
   timeoutMs: number;
+  cacheTtlMs?: number;
   moodleSession?: string;
   moodleSesskey?: string;
   username?: string;
@@ -81,11 +84,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): LmsConfig {
     errors.push("TIMEOUT_MS must be a positive integer in milliseconds, at most 2147483647");
   }
 
+  const rawCacheTtl = env.LMS_CACHE_TTL_MS?.trim();
+  let cacheTtlMs: number | undefined;
+  if (rawCacheTtl) {
+    cacheTtlMs = Number(rawCacheTtl);
+    if (!/^\d+$/.test(rawCacheTtl) || !Number.isSafeInteger(cacheTtlMs) || cacheTtlMs > 2147483647) {
+      errors.push("LMS_CACHE_TTL_MS must be an integer in milliseconds between 0 and 2147483647");
+    }
+  }
+
   if (errors.length) {
     throw new Error(`Invalid LMS configuration:\n- ${errors.join("\n- ")}`);
   }
 
   const config: LmsConfig = { baseUrl, timeoutMs };
+  if (cacheTtlMs !== undefined) config.cacheTtlMs = cacheTtlMs;
   if (moodleSession !== undefined) config.moodleSession = moodleSession;
   if (moodleSesskey !== undefined) config.moodleSesskey = moodleSesskey;
   if (username !== undefined) config.username = username;
