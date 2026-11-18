@@ -160,6 +160,7 @@ test("[P2] saveEnvFile creates .env with 0600 mode and secures existing files", 
   saveEnvFile(tmpEnv, {
     baseUrl: "https://lms.fit.hanu.vn",
     timeoutMs: "5000",
+    cacheTtlMs: "0",
     username: "user1",
     password: "Dummy#Pass42",
   });
@@ -167,6 +168,7 @@ test("[P2] saveEnvFile creates .env with 0600 mode and secures existing files", 
   const stat1 = fs.statSync(tmpEnv);
   const mode1 = stat1.mode & 0o777;
   assert.equal(mode1, 0o600);
+  assert.equal(parseEnvContent(fs.readFileSync(tmpEnv, "utf8")).LMS_CACHE_TTL_MS, "0");
 
   // Simulate existing file with 0644
   fs.chmodSync(tmpEnv, 0o644);

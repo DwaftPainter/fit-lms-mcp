@@ -15,7 +15,8 @@ export function moduleViewUrl(candidate: string | undefined, baseUrl: string, ex
       url.origin !== base.origin || url.username || url.password ||
       !type || (expectedType !== undefined && type !== expectedType) ||
       !id || !/^[1-9]\d*$/.test(id) || !Number.isSafeInteger(Number(id)) ||
-      [...url.searchParams.keys()].some(key => key !== "id" && key !== "sesskey")
+      [...url.searchParams].some(([key, value]) => key !== "id" && key !== "sesskey" &&
+        !((type === "resource" || type === "url") && (key === "redirect" || key === "forceview") && /^[01]$/.test(value)))
     ) return null;
     // Never expose session keys or fragments received in LMS links.
     return `${baseUrl}/mod/${type}/view.php?id=${id}`;

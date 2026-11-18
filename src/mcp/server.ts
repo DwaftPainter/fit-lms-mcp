@@ -6,6 +6,8 @@ import GetCourseAssignmentsTool from "../tools/GetCourseAssignmentsTool.js";
 import GetUpcomingDeadlinesTool from "../tools/GetUpcomingDeadlinesTool.js";
 import GetCourseContentsTool from "../tools/GetCourseContentsTool.js";
 import GetAssignmentDetailTool from "../tools/GetAssignmentDetailTool.js";
+import GetCourseAnnouncementsTool from "../tools/GetCourseAnnouncementsTool.js";
+import GetMaterialDetailTool from "../tools/GetMaterialDetailTool.js";
 
 export function createServer(config?: MCPServerConfig): MCPServer {
   const server = new MCPServer({
@@ -21,6 +23,8 @@ export function createServer(config?: MCPServerConfig): MCPServer {
   server.addTool(GetUpcomingDeadlinesTool);
   server.addTool(GetCourseContentsTool);
   server.addTool(GetAssignmentDetailTool);
+  server.addTool(GetCourseAnnouncementsTool);
+  server.addTool(GetMaterialDetailTool);
 
   return server;
 }

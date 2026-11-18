@@ -3,10 +3,12 @@ import { z } from "zod";
 import { loadConfig } from "../../config/env.js";
 import { getAuthProvider } from "../../moodle/auth/provider-factory.js";
 import { MoodleClient } from "../../moodle/client.js";
+import { getCourseMetadataCache } from "../../services/course-metadata-cache.js";
 import { CourseService } from "../../services/course.service.js";
 
 interface GetMyCoursesInput {
   classification?: "all" | "inprogress" | "future" | "past";
+  bypassCache?: boolean;
 }
 
 const schema = z.object({
@@ -15,6 +17,7 @@ const schema = z.object({
     .optional()
     .default("all")
     .describe("Filter courses by timeline classification (default: 'all')"),
+  bypassCache: z.boolean().optional().describe("Fetch a fresh course list from Moodle"),
 });
 
 export class GetMyCoursesTool extends MCPTool<GetMyCoursesInput> {
@@ -25,14 +28,11 @@ export class GetMyCoursesTool extends MCPTool<GetMyCoursesInput> {
 
   async execute(input: GetMyCoursesInput) {
     const config = loadConfig();
-    const authProvider = getAuthProvider(config);
-    const client = new MoodleClient({
-      baseUrl: config.baseUrl,
-      authProvider,
-      timeoutMs: config.timeoutMs,
-    });
-    const courseService = new CourseService(client);
-    return await courseService.getMyCourses(input.classification ?? "all");
+    const classification = input.classification ?? "all";
+    return getCourseMetadataCache(config).courses.getOrLoad(classification, () => {
+      const client = new MoodleClient({ baseUrl: config.baseUrl, authProvider: getAuthProvider(config), timeoutMs: config.timeoutMs });
+      return new CourseService(client).getMyCourses(classification);
+    }, input.bypassCache);
   }
 }
 

@@ -216,10 +216,11 @@ export function ask(question, isPassword = false) {
   return isPassword ? askPassword(question) : askText(question);
 }
 
-export function saveEnvFile(envPath, { baseUrl, timeoutMs, username, password }) {
+export function saveEnvFile(envPath, { baseUrl, timeoutMs, cacheTtlMs, username, password }) {
   const envContent = [
     `LMS_BASE_URL=${serializeEnvValue(baseUrl)}`,
     `TIMEOUT_MS=${serializeEnvValue(timeoutMs)}`,
+    ...(cacheTtlMs === undefined ? [] : [`LMS_CACHE_TTL_MS=${serializeEnvValue(cacheTtlMs)}`]),
     "",
     "# Auto-login credentials",
     `LMS_USERNAME=${serializeEnvValue(username)}`,
@@ -275,6 +276,7 @@ export async function runSetup() {
   let existingBaseUrl = "https://lms.fit.hanu.vn";
   let existingUsername = "";
   let existingTimeout = "5000";
+  let existingCacheTtlMs;
 
   if (fs.existsSync(envPath)) {
     try {
@@ -282,6 +284,7 @@ export async function runSetup() {
       if (parsed.LMS_BASE_URL) existingBaseUrl = parsed.LMS_BASE_URL;
       if (parsed.LMS_USERNAME) existingUsername = parsed.LMS_USERNAME;
       if (parsed.TIMEOUT_MS) existingTimeout = parsed.TIMEOUT_MS;
+      existingCacheTtlMs = parsed.LMS_CACHE_TTL_MS;
     } catch {
       // Ignore read errors
     }
@@ -294,6 +297,7 @@ export async function runSetup() {
         if (parsed.LMS_BASE_URL) existingBaseUrl = parsed.LMS_BASE_URL;
         if (parsed.LMS_USERNAME) existingUsername = parsed.LMS_USERNAME;
         if (parsed.TIMEOUT_MS) existingTimeout = parsed.TIMEOUT_MS;
+        existingCacheTtlMs = parsed.LMS_CACHE_TTL_MS;
       } catch {
         // Ignore read errors
       }
@@ -351,7 +355,7 @@ export async function runSetup() {
   }
 
   // 5. Save to .env with 0600 permissions and escaped values
-  saveEnvFile(envPath, { baseUrl, timeoutMs, username, password });
+  saveEnvFile(envPath, { baseUrl, timeoutMs, cacheTtlMs: existingCacheTtlMs, username, password });
   console.log(`\n🎉 Đã lưu cấu hình an toàn (permissions: 0600) vào: ${envPath}`);
 
   // 6. Define configurations for clients

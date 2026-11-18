@@ -51,6 +51,7 @@ For use via `npx`, create `~/.fit-lms-mcp/.env` with the settings below and rest
 | `LMS_USERNAME` | Student ID / username for automatic login (Option 1 - Recommended) |
 | `LMS_PASSWORD` | Password for automatic login (Option 1; automatically logs in and refreshes expired sessions) |
 | `TIMEOUT_MS` | Optional request timeout in milliseconds (default: `5000`, maximum: `2147483647`) |
+| `LMS_CACHE_TTL_MS` | Optional course metadata cache lifetime in milliseconds (default `900000`, maximum `2147483647`, `0` disables caching) |
 | `LMS_MOODLE_SESSION` | MoodleSession cookie value (Option 2 - Manual legacy session) |
 | `LMS_MOODLE_SESSKEY` | sesskey query parameter from the same session (Option 2 - Manual legacy session) |
 
@@ -190,11 +191,17 @@ For OpenCode, use these values as a single command array. For Codex, use them as
 
 | Tool | Input | Output |
 | :--- | :--- | :--- |
-| `get_my_courses` | Optional `classification`: `all` (default), `inprogress`, `future`, `past` | Enrolled courses with ID, course name, short name, start/end dates, progress percentage, and LMS URL |
+| `get_my_courses` | Optional `classification` (`all` by default, `inprogress`, `future`, `past`) and optional boolean `bypassCache` | Enrolled courses with ID, course name, short name, start/end dates, progress percentage, and LMS URL |
 | `get_course_assignments` | Required positive integer `courseId` | List of visible assignments in the course with module ID, name, course ID, course name, and view link |
 | `get_assignment_detail` | Required positive integer `courseModuleId` | Detailed assignment information: prompt instructions, submission status (*Submitted for grading*, *Draft*, *No submission*), grading status, due date, time remaining, last modified, and cutoff date |
 | `get_upcoming_deadlines` | Optional `daysAhead` (1–365, default **7**), `includePast` (default false), `from`, `to`, `courseId` | Due events sorted in ascending order by due date, with verified course module ID and direct submission link |
-| `get_course_contents` | Required positive integer `courseId` | Course sections, module structure, activity titles, and resource metadata (excludes hidden/restricted items) |
+| `get_course_contents` | Required positive integer `courseId` and optional boolean `bypassCache` | Course sections, module structure, activity titles, and resource metadata (excludes hidden/restricted items) |
+| `get_course_announcements` | Required positive integer `courseId`, optional zero-based `page` (default **0**) | Up to 10 visible announcements in Moodle forum order, with title, message text, discussion link, and author and timestamp when available |
+| `get_material_detail` | Required positive integers `courseId` and `courseModuleId` from `get_course_contents` | Name, type, Moodle link, and available details for File, Folder, Page, and URL modules, including file names and links, page text, or the destination URL |
+
+Moodle may log the activity view or apply its view-based completion settings when the server reads an announcement forum or material page. Material lookups read metadata and page text without downloading files or opening external destinations.
+
+Course lists and course contents are cached in memory for 15 minutes by default. Pass `bypassCache: true` to refresh from Moodle immediately after an enrollment or material change. Deadlines, submission status, announcements, and material details are fetched live.
 
 ### Tool Argument Examples
 
@@ -230,6 +237,8 @@ Once connected to your AI assistant, you can ask:
 - "List my enrolled courses on HANU FIT LMS."
 - "Show all assignments and upcoming deadlines for the next 7 days."
 - "What topics and materials are in course 660?"
+- "Show the announcements for course 660."
+- "Open the details of the exam guide listed in course 660."
 
 ---
 
