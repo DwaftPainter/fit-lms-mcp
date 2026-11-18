@@ -26,6 +26,14 @@ test("reports all missing required settings without credential values", () => {
   });
 });
 
+test("accepts a configurable cache TTL including zero, and rejects invalid values", () => {
+  assert.equal(loadConfig({ ...validEnv, LMS_CACHE_TTL_MS: "120000" }).cacheTtlMs, 120000);
+  assert.equal(loadConfig({ ...validEnv, LMS_CACHE_TTL_MS: "0" }).cacheTtlMs, 0);
+  for (const value of ["-1", "4.5", "2147483648", "not-a-number"]) {
+    assert.throws(() => loadConfig({ ...validEnv, LMS_CACHE_TTL_MS: value }), /LMS_CACHE_TTL_MS must be/);
+  }
+});
+
 test("rejects malformed or credential-bearing URLs", () => {
   for (const url of [
     "not-a-url",
