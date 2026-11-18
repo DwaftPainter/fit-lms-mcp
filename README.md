@@ -4,6 +4,20 @@ A Model Context Protocol (MCP) server providing authorized, read-only access to 
 
 It exposes enrolled courses, course assignments, upcoming deadlines, and course structure over stdio, with **automatic background authentication** and **interactive setup**.
 
+## Cài MCP cho Moodle LMS FIT HANU
+
+`fit-lms-mcp` kết nối Claude Code, Codex, OpenCode hoặc Antigravity với Moodle LMS của Khoa Công nghệ Thông tin, Trường Đại học Hà Nội (HANU). Sinh viên có thể xem môn học, tài liệu, bài tập và hạn nộp bằng tài khoản LMS của mình.
+
+Cài Node.js 22 trở lên rồi chạy lệnh sau để thiết lập.
+
+```bash
+npx -y fit-lms-mcp@latest setup
+```
+
+Nhập mã sinh viên và mật khẩu LMS khi được hỏi. Chọn đăng ký MCP với ứng dụng AI mà setup phát hiện, rồi khởi động lại ứng dụng. Với Codex, tự động đăng ký cần lệnh `codex` trên `PATH`.
+
+Sau khi kết nối, thử hỏi “Tuần này mình có bài tập nào sắp đến hạn?” hoặc “Cho mình xem tài liệu của môn Cơ sở dữ liệu”.
+
 ---
 
 ## 🚀 Quick Start
