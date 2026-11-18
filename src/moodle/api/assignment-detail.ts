@@ -16,13 +16,20 @@ export interface AssignmentDetail {
   cutoffDate?: string;
 }
 
+const HANU_MOODLE_OFFSET = "+07:00";
+const ISO_LOCAL_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/i;
+const MOODLE_LOCAL_DATE_TIME = /^(?:[a-z]+,\s+)?\d{1,2}\s+[a-z]+\s+\d{4},?\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[ap]m)?$/i;
+
 function normalizeDate(raw: string): string {
-  if (!raw) return raw;
-  const timestamp = Date.parse(raw);
-  if (!Number.isNaN(timestamp)) {
-    return new Date(timestamp).toISOString();
+  // Interpret timezone-less Moodle dates in the observed HANU LMS timezone.
+  let date = raw;
+  if (ISO_LOCAL_DATE_TIME.test(raw)) {
+    date = `${raw}${HANU_MOODLE_OFFSET}`;
+  } else if (MOODLE_LOCAL_DATE_TIME.test(raw)) {
+    date = `${raw} GMT${HANU_MOODLE_OFFSET}`;
   }
-  return raw;
+  const timestamp = Date.parse(date);
+  return Number.isNaN(timestamp) ? raw : new Date(timestamp).toISOString();
 }
 
 export function parseAssignmentDetail(html: string, baseUrl: string, courseModuleId: number): AssignmentDetail {

@@ -67,6 +67,22 @@ test("parseAssignmentDetail parses full assignment page with submission table", 
   assert.equal(result.cutoffDate, "2026-11-23T16:59:00.000Z");
 });
 
+test("parseAssignmentDetail uses the HANU timezone only when a date has no explicit offset", () => {
+  const content = `
+    <h2>Assignment dates</h2>
+    <table class="generaltable">
+      <tr><th>Due date</th><td>2026-11-22T00:30:00</td></tr>
+      <tr><th>Last modified</th><td>2026-11-15T20:12:00+09:00</td></tr>
+      <tr><th>Cut-off date</th><td>Not available</td></tr>
+    </table>
+  `;
+  const result = parseAssignmentDetail(htmlPage(content), baseUrl, 101);
+
+  assert.equal(result.dueDate, "2026-11-21T17:30:00.000Z");
+  assert.equal(result.lastModified, "2026-11-15T11:12:00.000Z");
+  assert.equal(result.cutoffDate, "Not available");
+});
+
 test("parseAssignmentDetail handles assignments without a submission table gracefully", () => {
   const noTableContent = `
     <h2>Reading Assignment: Chapter 4</h2>
